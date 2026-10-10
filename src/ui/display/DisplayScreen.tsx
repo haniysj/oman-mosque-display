@@ -129,13 +129,13 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
 
   const controlBar = fs ? (fsBtn && (
     <div className="ctrl-bar" role="toolbar" aria-label="الخروج من ملء الشاشة">
-      <button className="ctrl-btn" onClick={() => void toggleFullscreen()} aria-label="الخروج من ملء الشاشة"><IconExitFullscreen size={phone ? 22 : 26} /></button>
+      <button className="ctrl-btn" onClick={() => void toggleFullscreen()} aria-label="الخروج من ملء الشاشة"><IconExitFullscreen size={phone ? 17 : 20} /></button>
     </div>
   )) : showControls && (
     <div className="ctrl-bar" role="toolbar" aria-label="أزرار التحكم">
-      <button className="ctrl-btn" onClick={onOpenAdmin} aria-label="الإعدادات"><IconSettings size={phone ? 22 : 26} /></button>
+      <button className="ctrl-btn" onClick={onOpenAdmin} aria-label="الإعدادات"><IconSettings size={phone ? 17 : 20} /></button>
       <button className="ctrl-btn" onClick={() => void toggleFullscreen()} aria-label={fs ? 'الخروج من ملء الشاشة' : 'ملء الشاشة'}>
-        {fs ? <IconExitFullscreen size={phone ? 22 : 26} /> : <IconFullscreen size={phone ? 22 : 26} />}
+        {fs ? <IconExitFullscreen size={phone ? 17 : 20} /> : <IconFullscreen size={phone ? 17 : 20} />}
       </button>
     </div>
   );

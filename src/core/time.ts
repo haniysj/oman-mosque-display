@@ -118,7 +118,7 @@ export const GREGORIAN_MONTHS_AR = ['يناير', 'فبراير', 'مارس', '�
 export interface FormattedTime {
   text: string; // "4:52" or "16:52"
   seconds: string; // "07"
-  period: string; // "صباحاً" | "مساءً" | ""
+  period: string; // "ص" | "م" | ""
 }
 
 export function formatClock(minutesOfDay: number, seconds: number, fmt: '12' | '24', digits: DigitStyle): FormattedTime {
@@ -132,7 +132,7 @@ export function formatClock(minutesOfDay: number, seconds: number, fmt: '12' | '
   return {
     text: toDigits(`${h12}:${pad(mm)}`, digits),
     seconds: toDigits(pad(seconds), digits),
-    period: h24 < 12 ? 'صباحاً' : 'مساءً',
+    period: h24 < 12 ? 'ص' : 'م',
   };
 }
 

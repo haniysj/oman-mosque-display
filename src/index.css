@@ -155,8 +155,8 @@ button { font-family: inherit; }
   background: rgba(224,154,45,.18); color: #FBD58E; border: 1px solid rgba(224,154,45,.5); z-index: 5; }
 .source-badge--demo { background: rgba(194,69,58,.25); color: #FFD0CA; border-color: rgba(255,140,128,.6); }
 
-.ctrl-bar { position: absolute; top: 24px; left: 28px; display: flex; gap: 12px; z-index: 20; direction: ltr; }
-.ctrl-btn { width: 64px; height: 64px; border-radius: 18px; display: grid; place-items: center; cursor: pointer;
+.ctrl-bar { position: absolute; top: 20px; left: 24px; display: flex; gap: 8px; z-index: 20; direction: ltr; }
+.ctrl-btn { width: 46px; height: 46px; border-radius: 13px; display: grid; place-items: center; cursor: pointer;
   background: rgba(255,255,255,.08); color: var(--gold-l); border: 1px solid var(--line-d); backdrop-filter: blur(4px); }
 .ctrl-btn:hover { background: rgba(255,255,255,.16); }
 
@@ -184,8 +184,8 @@ button { font-family: inherit; }
 .m-names { min-width: 0; flex: 1; }
 .m-name { font-family: 'Cairo', Tahoma, sans-serif; font-weight: 800; color: var(--gold-l); }
 .m-name-en { font-size: 14px; color: var(--muted-d); font-weight: 600; }
-.m-head .ctrl-bar { position: static; gap: 8px; }
-.m-head .ctrl-btn { width: 44px; height: 44px; border-radius: 14px; }
+.m-head .ctrl-bar { position: static; gap: 6px; }
+.m-head .ctrl-btn { width: 34px; height: 34px; border-radius: 10px; }
 .is-portrait .source-badge { position: static; align-self: flex-start; font-size: 12px; padding: 3px 10px; }
 .m-clock { text-align: center; padding: 14px 0 12px; border-top: 1px solid var(--line-d); border-bottom: 1px solid var(--line-d); }
 .m-time { display: flex; justify-content: center; align-items: baseline; gap: 8px; direction: ltr; }
@@ -266,10 +266,10 @@ button { font-family: inherit; }
 .mp-empty { text-align: center; color: #627D98; padding: 24px 0; font-size: 14px; }
 .mp-foot { margin: 8px 0 0; font-size: 12px; color: #627D98; }
 
-.m-actions { display: flex; align-items: flex-start; gap: 8px; direction: ltr; }
+.m-actions { display: flex; align-items: flex-start; gap: 6px; direction: ltr; }
 .m-actions .ctrl-bar { position: static; }
 .m-bell-wrap { position: relative; }
-.m-bell { width: 44px; height: 44px; border-radius: 14px; }
+.m-bell { width: 34px; height: 34px; border-radius: 10px; }
 .m-bell.is-on { background: var(--gold); color: #12251E; border-color: var(--gold); }
 .m-tip { position: absolute; top: 52px; left: 0; z-index: 30; width: 240px; direction: rtl; font-size: 13px; font-weight: 700; line-height: 1.6;
   background: #FBF7EF; color: #102A43; border-radius: 12px; padding: 8px 10px; box-shadow: 0 6px 20px rgba(0,0,0,.3); }

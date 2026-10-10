@@ -145,7 +145,7 @@ export function DisplaySection() {
           <Field label="الخلفية"><Select value={d.background} onChange={(v) => set((c) => { c.display.background = v; })} options={[{ value: 'animated', label: 'حركة هادئة' }, { value: 'static', label: 'ثابتة' }]} /></Field>
           <Field label="شدة الحركة"><Range value={d.animationIntensity} min={0} max={100} onCommit={(v) => set((c) => { c.display.animationIntensity = v; })} /></Field>
           <Field label="الأرقام"><Select value={d.digits} onChange={(v) => set((c) => { c.display.digits = v; })} options={[{ value: 'western', label: '0123456789' }, { value: 'arabic', label: '٠١٢٣٤٥٦٧٨٩' }]} /></Field>
-          <Field label="صيغة الوقت"><Select value={d.timeFormat} onChange={(v) => set((c) => { c.display.timeFormat = v; })} options={[{ value: '12', label: '12 ساعة (صباحاً / مساءً)' }, { value: '24', label: '24 ساعة' }]} /></Field>
+          <Field label="صيغة الوقت"><Select value={d.timeFormat} onChange={(v) => set((c) => { c.display.timeFormat = v; })} options={[{ value: '12', label: '12 ساعة (ص / م)' }, { value: '24', label: '24 ساعة' }]} /></Field>
           <Field label="موضع اسم المسجد"><Select value={d.namePosition} onChange={(v) => set((c) => { c.display.namePosition = v; })} options={[{ value: 'center', label: 'في الوسط' }, { value: 'right', label: 'إلى اليمين مع الشعار' }]} /></Field>
           <Field label="حجم الساعة"><Range value={d.clockScale} min={70} max={130} onCommit={(v) => set((c) => { c.display.clockScale = v; })} /></Field>
           <Field label="حجم اسم المسجد"><Range value={d.nameScale} min={60} max={140} onCommit={(v) => set((c) => { c.display.nameScale = v; })} /></Field>
