@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyImport, exportCsv, parseCsvTimetable, parseJsonTimetable } from './timetable';
+import { applyImport, editDay, exportCsv, parseCsvTimetable, parseJsonTimetable } from './timetable';
 import { _forceTabular, formatHijriAr, toHijri } from './hijri';
 import { createBackup, validateBackup } from './backup';
 import { schedule, yearSchedule, cfg, adhkar } from '../test/fixtures';
@@ -50,6 +50,34 @@ describe('16. import validation', () => {
     expect(parseCsvTimetable('date,fajr\n2026-10-10,04:30').errors[0].message).toContain('أعمدة ناقصة');
     const r = parseCsvTimetable(`${HEAD}\n2026-10-10,04:30,05:45,11:50,15:10,17:40,19:00\n2026-10-13,04:30,05:45,11:50,15:10,17:40,19:00`);
     expect(r.stats.missingDates).toEqual(['2026-10-11', '2026-10-12']);
+  });
+  it('imports only the months that have times; empty and half-filled days stay empty', () => {
+    const rows = [HEAD];
+    for (let d = 1; d <= 31; d++) rows.push(`2027-01-${String(d).padStart(2, '0')},05:30,06:50,12:20,15:30,17:50,19:05`);
+    for (let d = 1; d <= 28; d++) rows.push(`2027-02-${String(d).padStart(2, '0')},,,,,,`); // February not filled yet
+    rows.push('2027-03-01,05:20,,12:25,,,'); // half-filled day
+    rows.push('2027-03-02,hh:mm,hh:mm,hh:mm,hh:mm,hh:mm,hh:mm'); // template placeholder
+    rows.push(',,,,,,');
+    const r = parseCsvTimetable(rows.join('\n'));
+    expect(r.errors).toEqual([]);
+    expect(r.stats.count).toBe(31);
+    expect(r.stats.skippedEmpty).toBe(29);
+    expect(r.stats.skippedPartial).toEqual(['2027-03-01']);
+    expect(r.stats.months.slice(0, 3)).toEqual([
+      { month: '2027-01', days: 31, total: 31 }, { month: '2027-02', days: 0, total: 28 }, { month: '2027-03', days: 0, total: 31 },
+    ]);
+    expect(r.stats.months).toHaveLength(12);
+    const next = applyImport(null, r, opt);
+    expect(Object.keys(next.days)).toHaveLength(31);
+    expect(next.days['2027-02-01']).toBeUndefined();
+  });
+  it('a file with no completed day at all is rejected', () => {
+    const r = parseCsvTimetable(`${HEAD}\n2027-01-01,,,,,,\n2027-01-02,,,,,,`);
+    expect(r.errors[0].message).toContain('مكتمل');
+  });
+  it('a single-day edit still requires every time', () => {
+    const s = schedule(['2026-10-10']);
+    expect(() => editDay(s, { date: '2026-10-10', fajr: '04:30', sunrise: '', dhuhr: '11:50', asr: '15:10', maghrib: '17:40', isha: '19:00' }, 'x')).toThrow();
   });
   it('detects a complete annual timetable', () => {
     const r = parseJsonTimetable(JSON.stringify(yearSchedule(2028)));

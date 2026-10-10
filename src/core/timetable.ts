@@ -6,7 +6,7 @@ import {
   DATA_VERSION, PRAYER_KEYS, TIME_KEYS,
   type DailyPrayerTimes, type DataSourceKind, type PrayerSchedule, type TimeKey, type TimetableMetadata,
 } from '../domain/types';
-import { addDays, daysInYear, normalizeDigits, parseDateKey, parseHHMM, toHHMM } from './time';
+import { addDays, daysInMonth, daysInYear, normalizeDigits, parseDateKey, parseHHMM, toHHMM } from './time';
 
 // ------------------------------------------------------------------ lookup
 
@@ -151,6 +151,12 @@ export interface ImportResult {
     missingDates: string[];
     duplicates: number;
     converted12h: number;
+    /** Rows whose six times were all empty — skipped, those days stay empty. */
+    skippedEmpty: number;
+    /** Dates with some (not all) times filled — skipped, those days stay empty. */
+    skippedPartial: string[];
+    /** Per month of every year in the file: days with times vs days in the month. */
+    months: { month: string; days: number; total: number }[];
   };
 }
 
@@ -161,18 +167,36 @@ const LABEL_AR: Record<string, string> = {
 function emptyResult(): ImportResult {
   return {
     records: [], errors: [], warnings: [],
-    stats: { count: 0, firstDate: null, lastDate: null, years: [], kind: 'partial', missingDates: [], duplicates: 0, converted12h: 0 },
+    stats: { count: 0, firstDate: null, lastDate: null, years: [], kind: 'partial', missingDates: [], duplicates: 0, converted12h: 0, skippedEmpty: 0, skippedPartial: [], months: [] },
   };
 }
 
 type RawRecord = Record<string, unknown> & { __row?: number };
 
-function validateRaw(rawRecords: RawRecord[], result: ImportResult): void {
+/** Empty cell, or a template placeholder such as "hh:mm" / "--" that was never filled in. */
+export function isBlankCell(v: unknown): boolean {
+  if (v === undefined || v === null) return true;
+  const t = String(v).trim().toLowerCase();
+  return t === '' || /^(hh:mm|h:mm|--:--|-+|—|–)$/.test(t);
+}
+
+/**
+ * strict = false (imports): rows without any times are skipped and those days stay empty,
+ * so a yearly file may contain only the months that have been filled in.
+ * strict = true (single-day edit): every time is required.
+ */
+function validateRaw(rawRecords: RawRecord[], result: ImportResult, strict = false): void {
   const byDate = new Map<string, DailyPrayerTimes>();
+  const fileYears = new Set<number>();
   rawRecords.forEach((raw, idx) => {
     const row = raw.__row ?? idx + 1;
+    const filled = TIME_KEYS.filter((k) => !isBlankCell(raw[k]));
+    if (!strict && filled.length === 0 && isBlankCell(raw.date)) return; // fully blank line
     const date = normalizeDate(String(raw.date ?? ''));
     if (!date) { result.errors.push({ row, message: `تاريخ غير صالح: «${String(raw.date ?? '')}»` }); return; }
+    fileYears.add(+date.slice(0, 4));
+    if (!strict && filled.length === 0) { result.stats.skippedEmpty++; return; }
+    if (!strict && filled.length < TIME_KEYS.length) { result.stats.skippedPartial.push(date); return; }
     const rec: DailyPrayerTimes = { date, fajr: '', sunrise: '', dhuhr: '', asr: '', maghrib: '', isha: '' };
     let bad = false;
     for (const k of TIME_KEYS) {
@@ -221,8 +245,17 @@ function validateRaw(rawRecords: RawRecord[], result: ImportResult): void {
   result.records = records;
   const st = result.stats;
   st.count = records.length;
+  for (const y of [...fileYears].sort()) {
+    for (let m = 1; m <= 12; m++) {
+      const prefix = `${y}-${String(m).padStart(2, '0')}`;
+      st.months.push({ month: prefix, days: records.filter((r) => r.date.startsWith(prefix)).length, total: daysInMonth(y, m) });
+    }
+  }
+  if (st.skippedPartial.length) {
+    result.warnings.push({ row: null, message: `أيام فيها بعض المواقيت فقط (${st.skippedPartial.length}) — لم تُستورد وستبقى فارغة: ${st.skippedPartial.slice(0, 6).join('، ')}${st.skippedPartial.length > 6 ? ' …' : ''}` });
+  }
   if (!records.length) {
-    if (!result.errors.length) result.errors.push({ row: null, message: 'الملف لا يحتوي على أي سجلات' });
+    if (!result.errors.length) result.errors.push({ row: null, message: 'الملف لا يحتوي على أي يوم مكتمل المواقيت' });
     return;
   }
   st.firstDate = records[0].date;
@@ -236,7 +269,7 @@ function validateRaw(rawRecords: RawRecord[], result: ImportResult): void {
   while (d <= st.lastDate && guard++ < 5000) { if (!byDate.has(d)) missing.push(d); d = addDays(d, 1); }
   st.missingDates = missing;
   if (missing.length) {
-    result.warnings.push({ row: null, message: `أيام مفقودة داخل الفترة (${missing.length}): ${missing.slice(0, 6).join('، ')}${missing.length > 6 ? ' …' : ''}` });
+    result.warnings.push({ row: null, message: `أيام بلا مواقيت داخل الفترة (${missing.length}) ستبقى فارغة: ${missing.slice(0, 6).join('، ')}${missing.length > 6 ? ' …' : ''}` });
   }
 
   // kind
@@ -246,9 +279,6 @@ function validateRaw(rawRecords: RawRecord[], result: ImportResult): void {
   else if (st.firstDate.slice(0, 7) === st.lastDate.slice(0, 7) && !missing.length) st.kind = 'monthly';
   else st.kind = 'partial';
 
-  if (st.years.length === 1 && st.kind !== 'annual' && st.count > 300) {
-    result.warnings.push({ row: null, message: `السنة ${y0} غير مكتملة: ${st.count} من ${daysInYear(y0)} يوماً` });
-  }
 
   // implausible day-to-day jumps (likely typing errors)
   for (let i = 1; i < records.length; i++) {
@@ -380,7 +410,7 @@ export function applyImport(current: PrayerSchedule | null, imp: ImportResult, o
 /** Edits a single day (admin correction). Validates order before accepting. */
 export function editDay(schedule: PrayerSchedule, rec: DailyPrayerTimes, nowIso: string): PrayerSchedule {
   const imp = emptyResult();
-  validateRaw([{ ...rec, __row: 1 } as unknown as RawRecord], imp);
+  validateRaw([{ ...rec, __row: 1 } as unknown as RawRecord], imp, true);
   if (imp.errors.length) throw new Error(imp.errors.map((e) => e.message).join('\n'));
   const days = { ...schedule.days, [rec.date]: { ...imp.records[0], source: 'admin' as const } };
   const meta = buildMeta(days, { ...schedule.meta }, nowIso);

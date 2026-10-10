@@ -126,7 +126,7 @@ function ImportCard({ label, wilayatId, schedule, onCommit, isValidCurrent }: { 
     setFile({ name: f.name, res });
     const y = res.stats.years.join('/') || year;
     setNote(`تقويم وزارة الأوقاف والشؤون الدينية ${y} — ${label}`);
-    setMode(res.stats.kind === 'annual' || !schedule ? 'replace' : 'merge');
+    setMode(res.stats.kind === 'annual' || !schedule || schedule.meta.source === 'demo' || schedule.meta.source === 'calculated' ? 'replace' : 'merge');
   };
 
   const r = file?.res;
@@ -148,7 +148,7 @@ function ImportCard({ label, wilayatId, schedule, onCommit, isValidCurrent }: { 
     <Card title="استيراد جدول المواقيت" icon={<IconUpload size={18} />}>
       <Note>
         المصدر الرسمي: تقويم وزارة الأوقاف والشؤون الدينية (تطبيق «تقويم عُمان» أو التقويم المطبوع). موقع الوزارة لا يوفر ملفات تنزيل أو واجهة برمجية عامة، لذا تُنقل المواقيت إلى ملف CSV/JSON ثم تُستورد هنا.
-        يقبل الاستيراد جدولاً يومياً أو شهرياً أو سنوياً، بأرقام عربية أو إنجليزية، وبصيغة 24 ساعة أو 12 ساعة (ص/م).
+        يقبل الاستيراد جدولاً يومياً أو شهرياً أو سنوياً، بأرقام عربية أو إنجليزية، وبصيغة 24 ساعة أو 12 ساعة (ص/م). لا يلزم أن يكون ملف السنة مكتملاً: تُستورد الأيام التي فيها مواقيت فقط، والأشهر الفارغة تبقى فارغة.
       </Note>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-xl border border-ink bg-ink px-4 text-[14px] font-bold text-white hover:bg-ink2">
@@ -169,6 +169,7 @@ function ImportCard({ label, wilayatId, schedule, onCommit, isValidCurrent }: { 
             <Badge tone="muted">{KIND_AR[r.stats.kind]}</Badge>
             <Badge tone="muted">{r.stats.count} يوماً</Badge>
             {r.stats.firstDate && <Badge tone="muted"><bdi dir="ltr">{r.stats.firstDate} → {r.stats.lastDate}</bdi></Badge>}
+            {r.stats.skippedEmpty > 0 && <Badge tone="muted">{r.stats.skippedEmpty} يوماً فارغاً — يبقى فارغاً</Badge>}
           </div>
           {r.errors.length > 0 && (
             <Note tone="error">
@@ -177,6 +178,7 @@ function ImportCard({ label, wilayatId, schedule, onCommit, isValidCurrent }: { 
               {r.errors.length > 15 && <div>و{r.errors.length - 15} خطأ آخر…</div>}
             </Note>
           )}
+          {r.stats.months.length > 0 && <MonthStrip months={r.stats.months} />}
           {r.warnings.length > 0 && (
             <Note tone="warn"><ul className="m-0 list-disc pr-5">{r.warnings.slice(0, 10).map((e, i) => <li key={i}>{e.date ? `${e.date}: ` : ''}{e.message}</li>)}</ul></Note>
           )}
@@ -193,7 +195,7 @@ function ImportCard({ label, wilayatId, schedule, onCommit, isValidCurrent }: { 
                   <TextInput value={note} onCommit={setNote} />
                 </Field>
               </Grid>
-              {mode === 'replace' && isValidCurrent && r.stats.kind !== 'annual' && <Note tone="warn">الملف لا يغطي سنة كاملة، وسيحل محل جدول صالح. اختر «دمج» إن أردت تحديث أيام محددة فقط.</Note>}
+              {mode === 'replace' && isValidCurrent && r.stats.kind !== 'annual' && <Note tone="warn">«استبدال» يحذف الجدول الحالي كله، والأيام غير الموجودة في الملف تصبح فارغة. اختر «دمج» لإضافة هذه الأشهر مع الإبقاء على الموجود.</Note>}
               <div className="flex gap-2">
                 <Btn kind="teal" onClick={apply}><IconUpload size={16} />اعتماد الاستيراد</Btn>
                 <Btn onClick={() => setFile(null)}>إلغاء</Btn>
@@ -356,5 +358,25 @@ function Viewer({ schedule, today }: { schedule: PrayerSchedule; today: string }
         </div>
       )}
     </Card>
+  );
+}
+
+/** Month-by-month coverage of an import file: full, partial or empty (empty months stay empty). */
+function MonthStrip({ months }: { months: { month: string; days: number; total: number }[] }) {
+  return (
+    <div>
+      <div className="mb-1.5 text-[12px] font-bold text-ink2">الأشهر في الملف — الأشهر الفارغة تبقى فارغة ويمكن استيرادها لاحقاً بطريقة «دمج»</div>
+      <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6">
+        {months.map((m) => {
+          const full = m.days === m.total, none = m.days === 0;
+          return (
+            <div key={m.month} className={`rounded-lg border px-2 py-1.5 text-center ${full ? 'border-teal/40 bg-teal-soft' : none ? 'border-line bg-white text-muted' : 'border-saffron/50 bg-saffron-soft'}`}>
+              <div className="text-[12px] font-bold text-ink">{GREGORIAN_MONTHS_AR[+m.month.slice(5) - 1]}</div>
+              <div className="whitespace-nowrap text-[11px] text-ink2">{none ? 'فارغ' : full ? `مكتمل ${m.days}` : `${m.days}/${m.total}`}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
