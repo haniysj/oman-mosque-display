@@ -261,15 +261,17 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin }: { state: DisplayState;
           ) : (
             <div className="clock" style={{ '--clock-scale': d.clockScale / 100 } as CSSProperties}>
               <div className="clock-row">
+                {clock.period && <span className="clock-period" dir="rtl">{clock.period}</span>}
                 <StableDigits className="clock-time" text={clock.text} />
                 {d.showSeconds && <StableDigits className="clock-sec" text={clock.seconds} />}
               </div>
-              {clock.period && <div className="clock-period">{clock.period}</div>}
-              <div className="clock-day">{weekday}</div>
-              <div className="clock-dates">
-                <div className="date-hijri">{hijri}</div>
-                <div className="date-sep" aria-hidden />
-                <div className="date-greg">{greg}</div>
+              <div className="clock-meta">
+                <div className="clock-day">{weekday}</div>
+                <div className="meta-sep" aria-hidden />
+                <div className="clock-dates">
+                  <div className="date-hijri">{hijri}</div>
+                  <div className="date-greg">{greg}</div>
+                </div>
               </div>
             </div>
           )}
@@ -338,13 +340,16 @@ function MobileView({ state, cfg, hasSchedule, controls }: { state: DisplayState
           </div>
         ) : (
           <div className="m-time">
+            {clock.period && <span className="m-time-period">{clock.period}</span>}
             <StableDigits text={clock.text} className="m-time-main" />
             {d.showSeconds && <StableDigits text={clock.seconds} className="m-time-sec" />}
-            <span className="m-time-period">{clock.period}</span>
           </div>
         )}
-        <div className="m-day">{weekday}</div>
-        <div className="m-dates"><span>{hijri}</span><span>{greg}</span></div>
+        <div className="m-meta">
+          <div className="m-day">{weekday}</div>
+          <div className="meta-sep" aria-hidden />
+          <div className="m-dates"><span>{hijri}</span><span>{greg}</span></div>
+        </div>
       </section>
 
       {inSequence && (

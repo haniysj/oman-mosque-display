@@ -62,6 +62,17 @@ for (const [name, dev] of [['phone-390x844', IPHONE], ['phone-375x667', devices[
     check: async (p) => ok(`${name}: table visible`, await p.locator('.m-table').isVisible()) });
 }
 
+// Longest weekday + longest Hijri month: day | dates row must stay inside the arch
+for (const [w, h] of [[1920, 1080], [1024, 768]]) {
+  await shot(browser, { name: `display-long-date-${w}`, w, h, at: muscat('2026-11-25', '20:10:00'), ua: TV_UA,
+    check: async (p) => {
+      const c = await p.locator('.tv-center').boundingBox(); const m = await p.locator('.clock-meta').boundingBox();
+      ok(`long date row inside centre (${w})`, c && m && m.x >= c.x + 20 * Math.min(w / 1920, h / 1080) && m.x + m.width <= c.x + c.width - 20 * Math.min(w / 1920, h / 1080), JSON.stringify({ c, m }));
+      const t = await p.locator('.clock-row').boundingBox();
+      const mg = 30 * Math.min(w / 1920, h / 1080); ok(`clock row inside centre (${w})`, c && t && t.x >= c.x + mg && t.x + t.width <= c.x + c.width - mg, JSON.stringify({ c, t }));
+    } });
+}
+
 // Long mosque name wraps without clipping
 await shot(browser, { name: 'display-long-name', w: 1920, h: 1080, at: muscat(SAT, '09:00:00'), ua: TV_UA,
   mutate: (b) => { b.config.mosque.nameAr = 'جامع السلطان قابوس الأكبر بولاية بوشر — مسجد الجمعة والعيدين ومركز تحفيظ القرآن الكريم'; return b; },

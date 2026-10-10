@@ -79,19 +79,20 @@ button { font-family: inherit; }
 .mihrab path.inner { stroke-width: 1; opacity: .38; }
 .theme-minimal .mihrab path { opacity: .35; }
 
-.clock { --clock-scale: 1; position: relative; text-align: center; padding-top: 110px; }
+.clock { --clock-scale: 1; position: relative; text-align: center; padding-top: 130px; }
 .clock-row { white-space: nowrap; display: flex; align-items: flex-end; justify-content: center; gap: 14px; direction: ltr; }
-.clock-time { font-size: calc(166px * var(--clock-scale)); font-weight: 800; line-height: .9; color: var(--text); letter-spacing: -2px; }
+.clock-time { font-size: calc(156px * var(--clock-scale)); font-weight: 800; line-height: .9; color: var(--text); letter-spacing: -2px; }
 .clock-time .digit { display: inline-block; width: .58em; text-align: center; }
 .clock-time .colon { display: inline-block; width: .3em; text-align: center; position: relative; top: -.06em; }
-.clock-sec { font-size: calc(58px * var(--clock-scale)); font-weight: 700; color: var(--gold); line-height: 1; padding-bottom: calc(18px * var(--clock-scale)); }
+.clock-sec { font-size: calc(52px * var(--clock-scale)); font-weight: 700; color: var(--gold); line-height: 1; padding-bottom: calc(18px * var(--clock-scale)); }
 .clock-sec .digit { display: inline-block; width: .6em; text-align: center; }
-.clock-period { font-size: calc(46px * var(--clock-scale)); font-weight: 700; color: var(--gold-l); margin-top: 16px; }
-.clock-day { font-size: 52px; font-weight: 700; margin-top: 14px; color: var(--text); }
-.clock-dates { margin-top: 26px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
-.date-hijri { font-size: 40px; font-weight: 700; color: var(--gold-l); }
-.date-sep { width: 120px; height: 2px; background: linear-gradient(90deg, transparent, var(--gold), transparent); opacity: .7; }
-.date-greg { font-size: 36px; font-weight: 600; color: var(--muted-d); }
+.clock-period { font-size: calc(36px * var(--clock-scale)); font-weight: 700; color: var(--gold-l); align-self: center; margin-right: 6px; }
+.clock-meta { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 46px; white-space: nowrap; }
+.clock-day { font-size: 44px; font-weight: 800; color: var(--text); }
+.meta-sep { width: 3px; align-self: stretch; min-height: 76px; background: linear-gradient(180deg, transparent, var(--gold) 15%, var(--gold) 85%, transparent); border-radius: 2px; }
+.clock-dates { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.date-hijri { font-size: 30px; font-weight: 700; color: var(--gold-l); }
+.date-greg { font-size: 27px; font-weight: 600; color: var(--muted-d); }
 
 .countdown { position: relative; text-align: center; padding-top: 96px; }
 .countdown-clock { font-size: 46px; font-weight: 700; color: var(--muted-d); }
@@ -155,9 +156,11 @@ button { font-family: inherit; }
 .m-time-main .digit { display: inline-block; width: .58em; text-align: center; }
 .m-time-sec { font-size: 26px; font-weight: 700; color: var(--gold); }
 .m-time-sec .digit { display: inline-block; width: .6em; text-align: center; }
-.m-time-period { font-size: 20px; font-weight: 700; color: var(--gold-l); direction: rtl; }
-.m-day { font-size: 22px; font-weight: 700; margin-top: 6px; }
-.m-dates { display: flex; flex-direction: column; gap: 2px; font-size: 16px; color: var(--muted-d); font-weight: 600; margin-top: 4px; }
+.m-time-period { font-size: 20px; font-weight: 700; color: var(--gold-l); direction: rtl; align-self: center; margin-right: 4px; }
+.m-meta { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 10px; }
+.m-meta .meta-sep { min-height: 40px; width: 2px; }
+.m-day { font-size: 22px; font-weight: 800; white-space: nowrap; }
+.m-dates { display: flex; flex-direction: column; align-items: flex-start; gap: 0; font-size: 15px; color: var(--muted-d); font-weight: 600; white-space: nowrap; }
 .m-dates span:first-child { color: var(--gold-l); }
 .m-count-label { font-size: 22px; font-weight: 800; color: var(--gold-l); }
 .m-count-digits { display: block; font-size: 84px; font-weight: 800; line-height: 1.05; direction: ltr; }
