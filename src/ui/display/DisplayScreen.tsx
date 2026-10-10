@@ -1,0 +1,391 @@
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import type { AppConfig, PrayerKey } from '../../domain/types';
+import { PRAYER_KEYS } from '../../domain/types';
+import type { DisplayState } from '../../core/engine';
+import { formatClock, formatGregorianAr, WEEKDAYS_AR } from '../../core/time';
+import { formatHijriAr, toHijri } from '../../core/hijri';
+import { coverage } from '../../core/timetable';
+import { updateConfig, useApp } from '../../store/appStore';
+import { simulationInfo, stopSimulation } from '../../services/clock';
+import { toggleFullscreen, useFullscreen, useWakeLock } from '../../services/platform';
+import { IconExitFullscreen, IconFullscreen, IconSettings, IconStop, IconSun } from '../common/icons';
+import { LightLayer, PatternLayer } from './Background';
+import { eventPhrase, FitText, Pill, remainingText, StableDigits, TimeText } from './parts';
+import { useDisplayState } from './useDisplay';
+import { AdhkarScreen } from './AdhkarScreen';
+
+const PRAYER_NAMES: Record<PrayerKey, string> = { fajr: 'الفجر', dhuhr: 'الظهر', asr: 'العصر', maghrib: 'المغرب', isha: 'العشاء' };
+const STAGE_W = 1920, STAGE_H = 1080;
+
+function useViewport() {
+  const [vp, setVp] = useState({ w: window.innerWidth, h: window.innerHeight });
+  useEffect(() => {
+    const h = () => setVp({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', h);
+    return () => window.removeEventListener('resize', h);
+  }, []);
+  return vp;
+}
+
+export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => void; adminOpen: boolean }) {
+  const cfg = useApp((s) => s.config);
+  const schedule = useApp((s) => s.schedule);
+  const { state, phone, dismissCurrent } = useDisplayState();
+  const fs = useFullscreen();
+  useWakeLock(cfg.display.wakeLock);
+  const vp = useViewport();
+  const portrait = vp.w < 760 || vp.h > vp.w * 1.05;
+
+  // ---------------------------------------------------------------- controls visibility
+  const [controls, setControls] = useState(!cfg.display.presentation);
+  const hideTimer = useRef<ReturnType<typeof setTimeout>>();
+  const reveal = useCallback((ms = 8000) => {
+    setControls(true);
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    const autoHide = cfg.display.presentation || cfg.display.autoHideControls;
+    if (autoHide && !phone) hideTimer.current = setTimeout(() => setControls(false), ms);
+  }, [cfg.display.presentation, cfg.display.autoHideControls, phone]);
+  useEffect(() => { if (cfg.display.presentation) setControls(false); else reveal(); }, [cfg.display.presentation, reveal]);
+
+  // emergency exit: OK/Enter pressed 3 times within 2 s, or triple tap
+  const presses = useRef<number[]>([]);
+  const emergencyPress = useCallback(() => {
+    if (!cfg.quiet.emergencyExit || state.phase === 'normal') return false;
+    const t = Date.now();
+    presses.current = [...presses.current.filter((x) => t - x < 2000), t];
+    if (presses.current.length >= 3) { presses.current = []; dismissCurrent(); }
+    return true;
+  }, [cfg.quiet.emergencyExit, state.phase, dismissCurrent]);
+
+  useEffect(() => {
+    if (adminOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      const k = e.key;
+      if (k === 'Enter' || k === ' ' || k === 'OK' || k === 'Select') { if (emergencyPress()) return; reveal(10000); return; }
+      if (k === 'Escape' || k === 'Back' || k === 'GoBack') { setControls((v) => !v); return; }
+      if (k === 'f' || k === 'F') { void toggleFullscreen(); return; }
+      if (k === 'p' || k === 'P') { void updateConfig((c) => { c.display.presentation = !c.display.presentation; }); return; }
+      if ((k === 's' || k === 'S') && e.shiftKey) { onOpenAdmin(); return; }
+      if (k.startsWith('Arrow') || k === 'ContextMenu' || k === 'Menu') reveal(10000);
+    };
+    const onMove = () => { if (!cfg.display.presentation) reveal(); };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('mousemove', onMove);
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('mousemove', onMove); };
+  }, [adminOpen, emergencyPress, reveal, cfg.display.presentation, onOpenAdmin]);
+
+  const taps = useRef<number[]>([]);
+  const onPointer = () => {
+    if (emergencyPress()) return;
+    const t = Date.now();
+    taps.current = [...taps.current.filter((x) => t - x < 600), t];
+    if (taps.current.length >= 2 || !cfg.display.presentation) { taps.current = []; reveal(10000); }
+  };
+
+  const themeClass = [
+    `theme-${cfg.display.highContrast ? 'contrast' : cfg.display.theme}`,
+    state.plan?.isFriday && cfg.friday.themeVariation ? 'is-friday' : '',
+  ].join(' ');
+
+  const sim = simulationInfo();
+  const showControls = controls && !(state.phase === 'quiet' && !phone);
+
+  const controlBar = showControls && (
+    <div className="ctrl-bar" role="toolbar" aria-label="أزرار التحكم">
+      <button className="ctrl-btn" onClick={onOpenAdmin} aria-label="الإعدادات"><IconSettings size={phone ? 22 : 26} /></button>
+      <button className="ctrl-btn" onClick={() => void toggleFullscreen()} aria-label={fs ? 'الخروج من ملء الشاشة' : 'ملء الشاشة'}>
+        {fs ? <IconExitFullscreen size={phone ? 22 : 26} /> : <IconFullscreen size={phone ? 22 : 26} />}
+      </button>
+    </div>
+  );
+
+  const simBanner = sim.active && (
+    <div className="sim-banner" role="status">
+      <span>وضع المحاكاة — الوقت المعروض ليس حقيقياً (×{sim.speed})</span>
+      <button onClick={stopSimulation}><IconStop size={16} /> إيقاف المحاكاة</button>
+    </div>
+  );
+
+  // Black screen after iqamah — nothing at all is rendered except a black surface.
+  if (state.phase === 'quiet') {
+    return <div className="quiet-screen" onPointerDown={onPointer} aria-label="وقت الصلاة">{simBanner}</div>;
+  }
+
+  return (
+    <div className={`display-root ${themeClass} ${portrait ? 'is-portrait' : ''} ${cfg.display.presentation ? 'is-presentation' : ''}`} onPointerDown={onPointer}>
+      <div className="bg-base" aria-hidden />
+      <PatternLayer theme={cfg.display.theme} highContrast={cfg.display.highContrast} />
+      <LightLayer mode={cfg.display.highContrast ? 'static' : cfg.display.background} intensity={cfg.display.animationIntensity} theme={cfg.display.theme} />
+      {simBanner}
+      {portrait
+        ? <MobileView state={state} cfg={cfg} hasSchedule={!!schedule} controls={controlBar} />
+        : (
+          <Stage vpW={vp.w} vpH={vp.h}>
+            {state.phase === 'adhkar'
+              ? <AdhkarScreen state={state} cfg={cfg} />
+              : <TvView state={state} cfg={cfg} hasSchedule={!!schedule} onOpenAdmin={onOpenAdmin} />}
+            {controlBar}
+          </Stage>
+        )}
+    </div>
+  );
+}
+
+function Stage({ vpW, vpH, children }: { vpW: number; vpH: number; children: React.ReactNode }) {
+  const scale = Math.min(vpW / STAGE_W, vpH / STAGE_H);
+  const style: CSSProperties = {
+    width: STAGE_W, height: STAGE_H,
+    transform: `translate(${(vpW - STAGE_W * scale) / 2}px, ${(vpH - STAGE_H * scale) / 2}px) scale(${scale})`,
+  };
+  return <div className="stage" style={style}>{children}</div>;
+}
+
+// ------------------------------------------------------------------------------ helpers
+
+function useDates(state: DisplayState, cfg: AppConfig) {
+  const hijri = formatHijriAr(toHijri(state.hijriDate, cfg.hijri.adjustment), cfg.display.digits);
+  const greg = formatGregorianAr(state.today, cfg.display.digits);
+  const weekday = WEEKDAYS_AR[state.parts.weekday];
+  return { hijri, greg, weekday };
+}
+
+function SourceBadge({ cfg }: { cfg: AppConfig }) {
+  const meta = useApp((s) => s.schedule?.meta);
+  if (!meta) return null;
+  if (meta.source === 'demo') return <div className="source-badge source-badge--demo">DEMO DATA — بيانات تجريبية، ليست مواقيت رسمية</div>;
+  if (meta.source === 'calculated' && cfg.display.showSourceBadge) return <div className="source-badge">مواقيت محسوبة تقديرياً — غير رسمية</div>;
+  return null;
+}
+
+function iqamahRowLabel(slot: PrayerKey, state: DisplayState, cfg: AppConfig) {
+  if (slot === 'dhuhr' && state.plan?.isFriday) return cfg.friday.rowMode === 'replace' ? `إقامة ${cfg.friday.label || 'الجمعة'}` : `إقامة الظهر / ${cfg.friday.label || 'الجمعة'}`;
+  return `إقامة ${PRAYER_NAMES[slot]}`;
+}
+function prayerRowLabel(slot: PrayerKey, state: DisplayState, cfg: AppConfig) {
+  return slot === 'dhuhr' && state.plan?.isFriday ? cfg.friday.label || 'الجمعة' : PRAYER_NAMES[slot];
+}
+
+// ------------------------------------------------------------------------------ TV (16:9)
+
+function TvView({ state, cfg, hasSchedule, onOpenAdmin }: { state: DisplayState; cfg: AppConfig; hasSchedule: boolean; onOpenAdmin: () => void }) {
+  const d = cfg.display;
+  const { hijri, greg, weekday } = useDates(state, cfg);
+  const clock = formatClock(state.parts.hour * 60 + state.parts.minute, state.parts.second, d.timeFormat, d.digits);
+  const plan = state.plan;
+  const panelStyle = { '--panel-scale': d.panelScale / 100 } as CSSProperties;
+  const schedule = useApp((s) => s.schedule);
+  const cov = coverage(schedule, state.today);
+
+  const prayers = (
+    <section className="panel" style={panelStyle} aria-label="أوقات الصلاة">
+      <h2 className="panel-title">أوقات الصلاة</h2>
+      {plan ? (
+        <ul className="rows">
+          {(['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha'] as const).map((k) => {
+            if (k === 'sunrise') {
+              return (
+                <li key={k} className="row row--sunrise">
+                  <span className="row-name"><IconSun size={34} className="sun-ico" />الشروق</span>
+                  <TimeText ms={plan.sunrise} cfg={cfg} className="row-time" />
+                </li>
+              );
+            }
+            const next = state.nextPrayerSlot === k;
+            return (
+              <li key={k} className={`row ${next ? 'is-next' : ''}`}>
+                <span className="row-name">{prayerRowLabel(k, state, cfg)}{next && <Pill tone="gold">القادمة</Pill>}</span>
+                <TimeText ms={plan.adhan[k]} cfg={cfg} className="row-time" />
+              </li>
+            );
+          })}
+        </ul>
+      ) : <p className="panel-empty">لا توجد مواقيت لهذا اليوم</p>}
+    </section>
+  );
+
+  const iqamah = (
+    <section className="panel" style={panelStyle} aria-label="الإقامة والضحى">
+      <h2 className="panel-title">الإقامة والضحى</h2>
+      {plan ? (
+        <ul className="rows">
+          {PRAYER_KEYS.flatMap((k) => {
+            const cur = state.currentIqamahSlot === k;
+            const row = (
+              <li key={k} className={`row ${cur ? 'is-current' : ''}`}>
+                <span className="row-name">{iqamahRowLabel(k, state, cfg)}{cur && <Pill tone="ivory">الآن</Pill>}</span>
+                <TimeText ms={plan.iqamah[k].at} cfg={cfg} className="row-time" />
+              </li>
+            );
+            if (k !== 'fajr') return [row];
+            return [row, (
+              <li key="duha" className="row row--duha">
+                <span className="row-name">صلاة الضحى</span>
+                <TimeText ms={plan.duha} cfg={cfg} className="row-time" />
+              </li>
+            )];
+          })}
+        </ul>
+      ) : <p className="panel-empty">—</p>}
+    </section>
+  );
+
+  const cd = state.countdown;
+  const final = cd && cd.seconds <= 10;
+
+  return (
+    <div className="tv">
+      <header className={`tv-head tv-head--${d.namePosition}`}>
+        {cfg.mosque.logoDataUrl && <img className="tv-logo" src={cfg.mosque.logoDataUrl} alt="" />}
+        <div className="tv-names">
+          <FitText text={cfg.mosque.nameAr || 'اسم المسجد'} base={Math.round(84 * d.nameScale / 100)} min={40} lines={2} className="tv-name" />
+          {d.showEnglishName && cfg.mosque.nameEn && <div className="tv-name-en" dir="ltr">{cfg.mosque.nameEn}</div>}
+        </div>
+      </header>
+      <SourceBadge cfg={cfg} />
+
+      <main className={`tv-main ${d.panelsSwapped ? 'is-swapped' : ''}`}>
+        {prayers}
+        <section className="tv-center" aria-live="polite">
+          <svg className="mihrab" viewBox="0 0 640 660" preserveAspectRatio="none" aria-hidden>
+            <path d="M24 652V300C24 150 170 52 320 10 470 52 616 150 616 300V652" />
+            <path className="inner" d="M48 652V306C48 172 182 84 320 44 458 84 592 172 592 306V652" />
+          </svg>
+          {cd ? (
+            <div className={`countdown ${final ? 'is-final' : ''}`} role="timer">
+              <div className="countdown-clock"><bdi className="num">{clock.text}</bdi> <span>{clock.period}</span></div>
+              <div className="countdown-label">{eventPhrase(cd.event)} بعد</div>
+              <StableDigits className="countdown-digits" text={remainingText(state, cd.event, d.digits)} />
+              <div className="countdown-unit">ثانية</div>
+            </div>
+          ) : (
+            <div className="clock" style={{ '--clock-scale': d.clockScale / 100 } as CSSProperties}>
+              <div className="clock-row">
+                <StableDigits className="clock-time" text={clock.text} />
+                {d.showSeconds && <StableDigits className="clock-sec" text={clock.seconds} />}
+              </div>
+              {clock.period && <div className="clock-period">{clock.period}</div>}
+              <div className="clock-day">{weekday}</div>
+              <div className="clock-dates">
+                <div className="date-hijri">{hijri}</div>
+                <div className="date-sep" aria-hidden />
+                <div className="date-greg">{greg}</div>
+              </div>
+            </div>
+          )}
+        </section>
+        {iqamah}
+      </main>
+
+      <footer className="tv-foot">
+        {!hasSchedule ? (
+          <div className="foot-warn">
+            لم يُضبط جدول المواقيت بعد
+            {!cfg.display.presentation && <button className="foot-btn" onClick={onOpenAdmin}>فتح الإعدادات</button>}
+          </div>
+        ) : !cov.coversToday ? (
+          <div className="foot-warn">جدول المواقيت لا يغطي تاريخ اليوم — يرجى تحديث الجدول من الإعدادات</div>
+        ) : (
+          <>
+            <div className="foot-item">
+              <span className="foot-label">{state.nextAdhan ? eventPhrase(state.nextAdhan) : 'الأذان القادم'}</span>
+              <span className="foot-sep" aria-hidden />
+              <span className="foot-value">بعد <StableDigits text={remainingText(state, state.nextAdhan, d.digits)} /></span>
+            </div>
+            {plan?.isFriday && cfg.friday.announcement
+              ? <div className="foot-note">{cfg.friday.announcement}</div>
+              : <div className="foot-dot" aria-hidden />}
+            <div className="foot-item">
+              <span className="foot-label">{state.nextIqamah ? eventPhrase(state.nextIqamah) : 'الإقامة القادمة'}</span>
+              <span className="foot-sep" aria-hidden />
+              <span className="foot-value">بعد <StableDigits text={remainingText(state, state.nextIqamah, d.digits)} /></span>
+            </div>
+          </>
+        )}
+      </footer>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------------------ Phone / portrait
+
+function MobileView({ state, cfg, hasSchedule, controls }: { state: DisplayState; cfg: AppConfig; hasSchedule: boolean; controls: React.ReactNode }) {
+  const d = cfg.display;
+  const { hijri, greg, weekday } = useDates(state, cfg);
+  const clock = formatClock(state.parts.hour * 60 + state.parts.minute, state.parts.second, d.timeFormat, d.digits);
+  const plan = state.plan;
+  const cd = state.countdown;
+  const inSequence = state.suppressedByMobile && state.sequence;
+
+  return (
+    <div className="m-root">
+      <header className="m-head">
+        <div className="m-names">
+          <FitText text={cfg.mosque.nameAr || 'اسم المسجد'} base={30} min={20} lines={2} className="m-name" />
+          {d.showEnglishName && cfg.mosque.nameEn && <div className="m-name-en" dir="ltr">{cfg.mosque.nameEn}</div>}
+        </div>
+        {controls}
+      </header>
+      <SourceBadge cfg={cfg} />
+
+      <section className="m-clock" aria-live="polite">
+        {cd ? (
+          <div className={`m-count ${cd.seconds <= 10 ? 'is-final' : ''}`} role="timer">
+            <div className="m-count-label">{eventPhrase(cd.event)} بعد</div>
+            <StableDigits className="m-count-digits" text={remainingText(state, cd.event, d.digits)} />
+          </div>
+        ) : (
+          <div className="m-time">
+            <StableDigits text={clock.text} className="m-time-main" />
+            {d.showSeconds && <StableDigits text={clock.seconds} className="m-time-sec" />}
+            <span className="m-time-period">{clock.period}</span>
+          </div>
+        )}
+        <div className="m-day">{weekday}</div>
+        <div className="m-dates"><span>{hijri}</span><span>{greg}</span></div>
+      </section>
+
+      {inSequence && (
+        <div className="m-note">{state.phase === 'normal' ? `صلاة ${state.sequence!.label} قائمة الآن` : ''}</div>
+      )}
+
+      {plan ? (
+        <table className="m-table">
+          <thead><tr><th scope="col">الصلاة</th><th scope="col">الأذان</th><th scope="col">الإقامة</th></tr></thead>
+          <tbody>
+            {PRAYER_KEYS.flatMap((k) => {
+              const row = (
+                <tr key={k} className={`${state.nextPrayerSlot === k ? 'is-next' : ''} ${state.currentIqamahSlot === k ? 'is-current' : ''}`}>
+                  <th scope="row">
+                    {prayerRowLabel(k, state, cfg)}
+                    {state.nextPrayerSlot === k && <span className="m-tag">القادمة</span>}
+                    {state.currentIqamahSlot === k && <span className="m-tag m-tag--now">الآن</span>}
+                  </th>
+                  <td><TimeText ms={plan.adhan[k]} cfg={cfg} /></td>
+                  <td><TimeText ms={plan.iqamah[k].at} cfg={cfg} /></td>
+                </tr>
+              );
+              if (k !== 'fajr') return [row];
+              return [row, (
+                <tr key="sunrise" className="is-sunrise">
+                  <th scope="row">الشروق / الضحى</th>
+                  <td><TimeText ms={plan.sunrise} cfg={cfg} /></td>
+                  <td><TimeText ms={plan.duha} cfg={cfg} /></td>
+                </tr>
+              )];
+            })}
+          </tbody>
+        </table>
+      ) : (
+        <div className="m-empty">{hasSchedule ? 'جدول المواقيت لا يغطي تاريخ اليوم' : 'لم يُضبط جدول المواقيت بعد — افتح الإعدادات'}</div>
+      )}
+
+      {plan && (state.nextAdhan || state.nextIqamah) && (
+        <div className="m-next">
+          {state.nextAdhan && <div><span>{eventPhrase(state.nextAdhan)}</span><b>بعد <StableDigits text={remainingText(state, state.nextAdhan, d.digits)} /></b></div>}
+          {state.nextIqamah && <div><span>{eventPhrase(state.nextIqamah)}</span><b>بعد <StableDigits text={remainingText(state, state.nextIqamah, d.digits)} /></b></div>}
+        </div>
+      )}
+      {plan?.isFriday && cfg.friday.announcement && <div className="m-announce">{cfg.friday.announcement}</div>}
+    </div>
+  );
+}

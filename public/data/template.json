@@ -1,0 +1,26 @@
+{
+  "_readme": "Replace hh:mm with the official MARA times (24-hour HH:MM, or 12-hour with AM/PM / ص / م). Optional: jumuah, iqamah.{fajr,dhuhr,asr,maghrib,isha,jumuah}. This _readme key is ignored on import.",
+  "days": [
+    {
+      "date": "2026-01-01",
+      "fajr": "hh:mm",
+      "sunrise": "hh:mm",
+      "dhuhr": "hh:mm",
+      "asr": "hh:mm",
+      "maghrib": "hh:mm",
+      "isha": "hh:mm"
+    },
+    {
+      "date": "2026-01-02",
+      "fajr": "hh:mm",
+      "sunrise": "hh:mm",
+      "dhuhr": "hh:mm",
+      "asr": "hh:mm",
+      "maghrib": "hh:mm",
+      "isha": "hh:mm",
+      "iqamah": {
+        "fajr": "hh:mm"
+      }
+    }
+  ]
+}
