@@ -162,6 +162,16 @@ for (const [w, h] of [[1440, 900], [1280, 1024], [2560, 1080], [1080, 1920], [82
     } });
 }
 
+// Name position «centre» with a logo: the name is centred on the screen (logo does not push it)
+for (const [name, w, h, ua, isMobile] of [['name-center-tv', 1920, 1080, TV_UA, false], ['name-center-phone', IPHONE.viewport.width, IPHONE.viewport.height, IPHONE.userAgent, true]]) {
+  await shot(browser, { name, w, h, at: muscat(SAT, '15:20:07'), ua, isMobile,
+    mutate: (b) => { b.config.display.namePosition = 'center'; b.config.mosque.logoDataUrl = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%23D4AF61'/%3E%3C/svg%3E"; return b; },
+    check: async (p) => {
+      const c = await p.evaluate((sel) => { const el = document.querySelector(sel); const r = document.createRange(); r.selectNodeContents(el); const b = r.getBoundingClientRect(); return (b.left + b.right) / 2; }, isMobile ? '.m-name' : '.tv-name');
+      ok(`${name}: name centred`, Math.abs(c - w / 2) <= 4, `${Math.round(c)} vs ${w / 2}`);
+    } });
+}
+
 // Offline: install SW, go offline, reload → still renders from cache + IndexedDB
 {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });

@@ -52,6 +52,10 @@ button { font-family: inherit; }
 .tv { position: absolute; inset: 0; display: grid; grid-template-rows: 214px 1fr 132px; padding: 0 72px; }
 .tv-head { display: flex; align-items: center; justify-content: center; gap: 28px; padding: 26px 180px 0; }
 .tv-head--right { justify-content: flex-start; padding-right: 8px; }
+/* Centre: the name is centred on the screen itself; the logo sits at the right edge and never pushes it */
+.tv-head--center { position: relative; padding-left: 240px; padding-right: 240px; }
+.tv-head--center .tv-logo { position: absolute; right: 8px; top: calc(50% + 13px); transform: translateY(-50%); max-width: 200px; }
+
 .tv-logo { height: 132px; width: auto; max-width: 220px; object-fit: contain; }
 .tv-names { text-align: center; min-width: 0; }
 .tv-head--right .tv-names { text-align: right; }
@@ -277,3 +281,8 @@ button { font-family: inherit; }
 .is-portrait-stage .m-root { overflow-y: auto; }
 .is-portrait-stage .m-table { flex: 1 1 auto; }
 .is-portrait-stage .m-clock { padding: 22px 0 18px; }
+
+/* Phone, centre: buttons on their own row, name centred under them */
+.m-head.m-head--center { flex-direction: column-reverse; align-items: stretch; gap: 6px; }
+.m-head.m-head--center .m-actions { align-self: flex-end; }
+.m-head.m-head--center .m-names, .m-head.m-head--center .m-name, .m-head.m-head--center .m-name-en { text-align: center; }

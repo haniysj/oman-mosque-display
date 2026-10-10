@@ -396,7 +396,7 @@ function MobileView({ state, cfg, hasSchedule, controls, onNameTap, fs }: { stat
 
   return (
     <div className={`m-root ${cd && d.countdownFocus ? 'is-countdown' : ''}`}>
-      <header className="m-head">
+      <header className={`m-head m-head--${d.namePosition}`}>
         <div className="m-names">
           <div onClick={onNameTap} role="button" aria-label="اضغط مرتين لتغيير المسجد" className="m-name-tap name-tap">
             <FitText text={cfg.mosque.nameAr || 'اسم المسجد'} base={30} min={20} lines={2} className="m-name" />
