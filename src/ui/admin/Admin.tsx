@@ -13,8 +13,11 @@ import { TimetableSection, SOURCE_AR, sourceTone } from './TimetableSection';
 import { FridaySection, HijriSection, IqamahSection, QuietSection } from './PrayerSections';
 import { AdhkarSection, BackupSection, DiagnosticsSection, DisplaySection, MosqueSection } from './OtherSections';
 import { checkPin } from './pin';
+import { CloudSection } from './CloudSection';
+import { useCloud } from '../../services/cloud';
 
 const TABS = [
+  { id: 'cloud', label: 'المساجد والمزامنة' },
   { id: 'mosque', label: 'المسجد' },
   { id: 'timetable', label: 'جدول المواقيت' },
   { id: 'iqamah', label: 'الإقامة' },
@@ -86,8 +89,9 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
   const cfg = useApp((s) => s.config);
   const schedule = useApp((s) => s.schedule);
   const online = useOnline();
+  const cloud = useCloud();
   const pwa = usePwaStatus();
-  const [tab, setTab] = useState<TabId>(() => (sessionStorage.getItem('omd-admin-tab') as TabId) || (schedule ? 'mosque' : 'timetable'));
+  const [tab, setTab] = useState<TabId>(() => (sessionStorage.getItem('omd-admin-tab') as TabId) || (schedule ? 'mosque' : 'cloud'));
   useEffect(() => { try { sessionStorage.setItem('omd-admin-tab', tab); } catch { /* ignore */ } }, [tab]);
   const warnings = useAdminWarnings();
   const [clockWarn, setClockWarn] = useState(false);
@@ -116,6 +120,7 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
   };
 
   const content: Record<TabId, ReactNode> = {
+    cloud: <CloudSection />,
     mosque: <MosqueSection />,
     timetable: <TimetableSection />,
     iqamah: <IqamahSection />,
@@ -166,6 +171,13 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
           </nav>
         </aside>
         <main className="min-w-0 flex-1">
+          {cloud.binding && !cloud.admin && tab !== 'cloud' && (
+            <div className="no-print mb-3">
+              <button className="w-full text-right" onClick={() => setTab('cloud')}>
+                <Note tone="warn">هذا الجهاز مرتبط بمسجد «{cloud.binding.name || cloud.binding.code}». التعديلات هنا تبقى على هذا الجهاز فقط، وقد تُستبدل عند وصول تحديث من السحابة. سجّل الدخول كمشرف من «المساجد والمزامنة» لترفع تعديلاتك.</Note>
+              </button>
+            </div>
+          )}
           {(warnings.length > 0 || clockWarn || pwa.updateWaiting) && (
             <div className="no-print mb-4 flex flex-col gap-2">
               {clockWarn && <Note tone="error"><span className="inline-flex items-center gap-1.5"><IconAlert size={15} />ساعة الجهاز تبدو غير صحيحة — افحصها من قسم «التشخيص».</span></Note>}

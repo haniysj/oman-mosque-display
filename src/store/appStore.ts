@@ -33,6 +33,24 @@ export function useApp<T>(sel: (s: AppState) => T): T {
   return useSyncExternalStore((cb) => { subs.add(cb); return () => subs.delete(cb); }, () => sel(state));
 }
 
+/** Local edits (not cloud downloads) are announced here so the optional cloud sync can upload them. */
+export type ChangeKind = 'config' | 'adhkar' | 'schedule';
+const changeListeners = new Set<(k: ChangeKind) => void>();
+export function onLocalChange(fn: (k: ChangeKind) => void): () => void { changeListeners.add(fn); return () => { changeListeners.delete(fn); }; }
+const emitChange = (k: ChangeKind) => changeListeners.forEach((f) => { try { f(k); } catch { /* ignore */ } });
+
+/** Applies data downloaded from the cloud: saved locally, published, and NOT re-uploaded. */
+export async function applyCloudData(d: { config?: AppConfig; adhkar?: AdhkarItem[]; schedule?: PrayerSchedule | null }) {
+  if (d.config) { await store.saveConfig(d.config); setClockOffset(d.config.display.clockOffsetMs); }
+  if (d.adhkar) await store.saveAdhkar(d.adhkar);
+  if (d.schedule) await store.commitSchedule(d.schedule, null);
+  publish({
+    ...(d.config ? { config: d.config } : {}),
+    ...(d.adhkar ? { adhkar: d.adhkar } : {}),
+    ...(d.schedule ? { schedule: d.schedule } : {}),
+  });
+}
+
 export function log(level: 'info' | 'warn' | 'error', message: string) {
   void store.addLog({ at: new Date().toISOString(), level, message });
 }
@@ -60,6 +78,7 @@ export async function updateConfig(mut: (c: AppConfig) => AppConfig | void) {
   await store.saveConfig(res);
   if (res.display.clockOffsetMs !== state.config.display.clockOffsetMs) setClockOffset(res.display.clockOffsetMs);
   publish({ config: res });
+  emitChange('config');
 }
 
 /** Commits an already-validated schedule; the current one becomes "previous". */
@@ -67,6 +86,7 @@ export async function commitSchedule(next: PrayerSchedule) {
   const prev = state.schedule;
   await store.commitSchedule(next, prev);
   publish({ schedule: next, previousSchedule: prev ?? state.previousSchedule });
+  emitChange('schedule');
   log('info', `اعتماد جدول مواقيت: ${next.meta.locationLabel} (${next.meta.source}) — ${next.meta.dayCount} يوماً`);
 }
 
@@ -75,6 +95,7 @@ export async function saveDayEdit(rec: DailyPrayerTimes) {
   const next = editDay(state.schedule, rec, new Date().toISOString());
   await store.saveSchedule(next);
   publish({ schedule: next });
+  emitChange('schedule');
   log('info', `تعديل يدوي لمواقيت ${rec.date}`);
 }
 
@@ -82,6 +103,7 @@ export async function restorePreviousSchedule(): Promise<boolean> {
   const ok = await store.swapWithPrevious();
   if (ok) {
     publish({ schedule: state.previousSchedule, previousSchedule: state.schedule });
+    emitChange('schedule');
     log('warn', 'استعادة الجدول السابق');
   }
   return ok;
@@ -91,6 +113,7 @@ export async function setAdhkar(list: AdhkarItem[]) {
   const ordered = list.map((a, i) => ({ ...a, order: i }));
   await store.saveAdhkar(ordered);
   publish({ adhkar: ordered });
+  emitChange('adhkar');
 }
 
 export async function restoreBackup(b: ApplicationBackup) {
@@ -101,6 +124,7 @@ export async function restoreBackup(b: ApplicationBackup) {
     config: b.config, adhkar: b.adhkar,
     ...(b.schedule ? { schedule: b.schedule, previousSchedule: prev ?? state.previousSchedule } : {}),
   });
+  emitChange('config'); emitChange('adhkar'); if (b.schedule) emitChange('schedule');
   log('warn', `استعادة نسخة احتياطية (${b.createdAt})`);
 }
 
@@ -127,5 +151,6 @@ export async function autoExtendIfNeeded(today: string): Promise<number> {
 export async function saveFilledSchedule(next: PrayerSchedule, what: string) {
   await store.saveSchedule(next);
   publish({ schedule: next });
+  emitChange('schedule');
   log('info', what);
 }

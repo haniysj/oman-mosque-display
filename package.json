@@ -12,7 +12,8 @@
     "typecheck": "tsc -b",
     "e2e": "node scripts/e2e.mjs",
     "samples": "vite-node scripts/make-samples.ts",
-    "icons": "node scripts/icons.mjs"
+    "icons": "node scripts/icons.mjs",
+    "e2e:cloud": "node scripts/e2e-cloud.mjs"
   },
   "dependencies": {
     "@fontsource/amiri": "^5.3.0",

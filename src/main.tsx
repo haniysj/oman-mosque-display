@@ -13,11 +13,13 @@ import { loadApp, log } from './store/appStore';
 import { startClock } from './services/clock';
 import { registerPwa } from './services/pwa';
 import { requestPersistentStorage } from './store/db';
+import { startCloud } from './services/cloud';
 
 startClock();
 void loadApp().then(() => {
   void registerPwa((m) => log('info', m));
   void requestPersistentStorage();
+  startCloud();
 });
 
 window.addEventListener('error', (e) => log('error', `خطأ: ${e.message}`));
