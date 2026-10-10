@@ -144,6 +144,7 @@ for (const tab of ['timetable', 'iqamah', 'friday', 'quiet', 'diagnostics']) {
 {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
   const page = await ctx.newPage();
+  await page.clock.install({ time: muscat(SAT, '15:20:07') }); // fixed time: never inside a quiet/adhkar period
   await seed(page);
   await page.goto(BASE + '/');
   await page.evaluate(async () => { const r = await navigator.serviceWorker.ready; return !!r.active; });
@@ -154,7 +155,7 @@ for (const tab of ['timetable', 'iqamah', 'friday', 'quiet', 'diagnostics']) {
   await page.waitForTimeout(1500);
   const text = await page.locator('.clock-time').textContent().catch(() => null);
   const t1 = text;
-  await page.waitForTimeout(2100);
+  await page.clock.runFor(2100);
   const sec = await page.locator('.clock-sec').textContent().catch(() => null);
   ok('offline: app shell loads from cache', !!t1);
   ok('offline: timetable from IndexedDB', (await page.locator('.panel .row').count()) === 12);

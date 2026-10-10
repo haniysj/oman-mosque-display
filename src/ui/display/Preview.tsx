@@ -9,7 +9,7 @@ export function Preview() {
   useEffect(() => { const f = () => setVp({ w: innerWidth, h: innerHeight }); addEventListener('resize', f); return () => removeEventListener('resize', f); }, []);
   const scale = Math.min((vp.w - 32) / w, (vp.h - 72) / h);
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#1b2733', fontFamily: 'Cairo', direction: 'rtl', color: '#fff' }}>
+    <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, background: '#1b2733', fontFamily: 'Cairo', direction: 'rtl', color: '#fff' }}>
       <div style={{ height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, fontWeight: 700 }}>
         معاينة {w}×{h} — مقياس {Math.round(scale * 100)}%
       </div>

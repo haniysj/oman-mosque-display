@@ -1,6 +1,7 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import legacy from '@vitejs/plugin-legacy';
 import { VitePWA } from 'vite-plugin-pwa';
 import pkg from './package.json';
 
@@ -11,10 +12,18 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(pkg.version),
     __BUILD_ID__: JSON.stringify(BUILD_ID),
   },
-  // Older smart-TV browsers: syntax is down-levelled to ES2017 (Chrome 73+ / Safari 12.1+ supported)
-  build: { target: ['es2017', 'chrome73', 'safari12'], cssTarget: ['chrome73', 'safari12'] },
+  // Smart-TV browsers (Samsung Tizen, LG webOS, Android TV) are often old Chromium builds.
+  // CSS is lowered for Chromium 56+ (e.g. `inset`), and @vitejs/plugin-legacy adds the missing
+  // JS features (flatMap, Object.fromEntries, …) — plus a full legacy bundle for browsers
+  // without ES modules.
+  build: { cssTarget: ['chrome56', 'safari11'] },
   plugins: [
     react(),
+    legacy({
+      targets: ['chrome >= 49', 'safari >= 10', 'samsung >= 5', 'android >= 5'],
+      modernTargets: ['chrome >= 64', 'safari >= 12', 'edge >= 79', 'firefox >= 67'],
+      modernPolyfills: true,
+    }),
     VitePWA({
       // "prompt": the new service worker waits; the app applies it only at a safe moment
       // (no adhan / iqamah / quiet sequence nearby) — see src/services/pwa.ts

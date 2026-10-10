@@ -106,7 +106,7 @@ ok('laptop: no JS errors', errs.length === 0, errs.join('|'));
 // 2) TV / phone: open /m/sq-muscat → gets the same timetable and settings
 const tv = await b.newContext({ viewport: { width: 1920, height: 1080 }, userAgent: 'Mozilla/5.0 (Linux; Android 11; BRAVIA 4K) Chrome/120' });
 await wire(tv);
-const t = await tv.newPage(); const terrs = []; t.on('pageerror', (e) => terrs.push(e.message));
+const t = await tv.newPage(); await t.clock.setFixedTime(at); const terrs = []; t.on('pageerror', (e) => terrs.push(e.message));
 await t.goto(BASE + '/m/sq-muscat'); await t.waitForTimeout(2500);
 ok('TV shows mosque name from cloud', (await t.locator('.tv-name').textContent())?.includes('جامع السلطان قابوس'));
 const rows = await t.locator('.panel').first().textContent();
@@ -126,7 +126,7 @@ ok('TV auto-updates from cloud', (await t.locator('.tv-name').textContent())?.in
 ok('TV: no JS errors', terrs.length === 0, terrs.join('|'));
 // 4) Second mosque in the same wilayat gets the same timetable
 handle('mosque_admin_upsert_mosque', { p_password: 'secret123', p_code: 'noor-muttrah', p_name_ar: 'مسجد النور', p_governorate_id: 'muscat', p_wilayat_id: 'muscat', p_config: db.mosques.get('sq-muscat').config, p_adhkar: [] });
-const t2 = await tv.newPage(); await t2.goto(BASE + '/m/noor-muttrah'); await t2.waitForTimeout(2500);
+const t2 = await tv.newPage(); await t2.clock.setFixedTime(at); await t2.goto(BASE + '/m/noor-muttrah'); await t2.waitForTimeout(2500);
 const fajr2 = await t2.locator('.panel .row').first().textContent();
 ok('same wilayat → same timetable', fajr2.includes('4:') && (await t2.locator('.tv-name').textContent()).includes('مسجد النور'), fajr2);
 
