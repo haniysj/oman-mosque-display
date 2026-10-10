@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { AdhkarItem, LogEntry } from '../../domain/types';
+import type { AdhkarItem, LogEntry, Theme } from '../../domain/types';
 import { defaultAdhkar } from '../../domain/defaults';
 import { createBackup, validateBackup, type BackupValidation } from '../../core/backup';
 import { computeState } from '../../core/engine';
@@ -15,6 +15,7 @@ import { Badge, Btn, Card, download, Field, Grid, Note, NumberInput, Range, read
 import { IconDown, IconDownload, IconEdit, IconFileJson, IconPlus, IconRestore, IconTrash, IconUp, IconUpload } from '../common/icons';
 import { hashPin } from './pin';
 import { SOURCE_AR } from './TimetableSection';
+import { THEME_LABELS } from '../display/Background';
 
 declare const __APP_VERSION__: string;
 declare const __BUILD_ID__: string;
@@ -208,7 +209,7 @@ export function DisplaySection() {
     <div className="flex flex-col gap-4">
       <Card title="المظهر">
         <Grid>
-          <Field label="السمة"><Select value={d.theme} onChange={(v) => set((c) => { c.display.theme = v; })} options={[{ value: 'ornamental', label: 'إسلامية زخرفية — أخضر زمردي وذهبي' }, { value: 'navy', label: 'كحلي ليلي وذهبي' }, { value: 'minimal', label: 'داكنة بسيطة' }]} /></Field>
+          <Field label="السمة"><Select value={d.theme} onChange={(v) => set((c) => { c.display.theme = v; })} options={(Object.keys(THEME_LABELS) as Theme[]).map((value) => ({ value, label: THEME_LABELS[value] }))} /></Field>
           <Field label="الخلفية"><Select value={d.background} onChange={(v) => set((c) => { c.display.background = v; })} options={[{ value: 'animated', label: 'حركة هادئة' }, { value: 'static', label: 'ثابتة' }]} /></Field>
           <Field label="شدة الحركة"><Range value={d.animationIntensity} min={0} max={100} onCommit={(v) => set((c) => { c.display.animationIntensity = v; })} /></Field>
           <Field label="الأرقام"><Select value={d.digits} onChange={(v) => set((c) => { c.display.digits = v; })} options={[{ value: 'western', label: '0123456789' }, { value: 'arabic', label: '٠١٢٣٤٥٦٧٨٩' }]} /></Field>

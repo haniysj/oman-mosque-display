@@ -1,24 +1,75 @@
 /**
- * Restrained background: a static Omani 8-point-star lattice (SVG, tiled) plus, in animated
- * mode, a few slow drifting points of light on a canvas. The canvas pauses when the page is
- * hidden, honours prefers-reduced-motion, caps at ~24 fps and thins itself out automatically
- * if frames start taking too long (weak smart-TV hardware).
+ * Theme backgrounds: every theme has its own colours AND its own Islamic geometric pattern
+ * (SVG tile, generated in code — no image files), plus the slow points-of-light animation.
+ * The canvas pauses when the page is hidden, honours prefers-reduced-motion, caps at ~24 fps
+ * and thins itself out automatically on weak smart-TV hardware.
  */
 import { useEffect, useRef } from 'react';
 import type { Background as Bg, Theme } from '../../domain/types';
 
-const STAR_TILE = (stroke: string, opacity: number) => {
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'><g fill='none' stroke='${stroke}' stroke-opacity='${opacity}' stroke-width='1'><path d='M60 18 72 48 102 60 72 72 60 102 48 72 18 60 48 48Z'/><path d='M30.3 30.3 60 42.4 89.7 30.3 77.6 60 89.7 89.7 60 77.6 30.3 89.7 42.4 60Z'/><circle cx='60' cy='60' r='9'/><path d='M0 0 18 18M120 0 102 18M0 120 18 102M120 120 102 102'/></g></svg>`;
-  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+export type ThemeKey = Theme | 'contrast';
+
+const f = (n: number) => n.toFixed(2);
+const poly = (pts: [number, number][]) => `M${pts.map(([x, y]) => `${f(x)} ${f(y)}`).join('L')}Z`;
+const star = (cx: number, cy: number, n: number, rOut: number, step: number) =>
+  poly(Array.from({ length: n }, (_, i) => { const a = (Math.PI * 2 * ((i * step) % n)) / n - Math.PI / 2; return [cx + rOut * Math.cos(a), cy + rOut * Math.sin(a)] as [number, number]; }));
+const ngon = (cx: number, cy: number, n: number, r: number, rot = 0) =>
+  poly(Array.from({ length: n }, (_, i) => { const a = rot + (Math.PI * 2 * i) / n; return [cx + r * Math.cos(a), cy + r * Math.sin(a)] as [number, number]; }));
+
+interface PatternDef { size: [number, number]; paths: string; width?: number }
+
+/** One distinct traditional motif per theme. */
+const PATTERNS: Record<ThemeKey, PatternDef> = {
+  // Khatam — eight-pointed star of two squares, with linking diagonals (Omani carved doors)
+  ornamental: { size: [120, 120], paths: `<path d='M60 18 72 48 102 60 72 72 60 102 48 72 18 60 48 48Z'/><path d='M30.3 30.3 60 42.4 89.7 30.3 77.6 60 89.7 89.7 60 77.6 30.3 89.7 42.4 60Z'/><circle cx='60' cy='60' r='9'/><path d='M0 0 18 18M120 0 102 18M0 120 18 102M120 120 102 102'/>` },
+  // Twelve-pointed rosette {12/5} with petal ring
+  navy: { size: [150, 150], paths: `<path d='${star(75, 75, 12, 52, 5)}'/><circle cx='75' cy='75' r='18'/><path d='${ngon(75, 75, 12, 30, Math.PI / 12)}'/><path d='M0 0 22 22M150 0 128 22M0 150 22 128M150 150 128 128'/>` },
+  // Hexagram lattice (six-pointed stars on a triangular grid)
+  minimal: { size: [104, 60], paths: `<path d='M0 0 104 60M0 60 104 0M52 0 52 60'/><path d='M0 30 104 30' stroke-dasharray='2 6'/><path d='${star(52, 30, 6, 16, 2)}'/>` },
+  // Rub el Hizb — two interlaced squares with an inner octagon and connecting bands
+  maroon: { size: [130, 130], paths: `<path d='${ngon(65, 65, 4, 44, Math.PI / 4)}'/><path d='${ngon(65, 65, 4, 44, 0)}'/><path d='${ngon(65, 65, 8, 18, Math.PI / 8)}'/><path d='M65 0 65 21M65 109 65 130M0 65 21 65M109 65 130 65'/><circle cx='0' cy='0' r='14'/><circle cx='130' cy='0' r='14'/><circle cx='0' cy='130' r='14'/><circle cx='130' cy='130' r='14'/>` },
+  // Overlapping circles (seed of the girih rosette)
+  turquoise: { size: [80, 138.56], paths: `<circle cx='40' cy='0' r='40'/><circle cx='0' cy='69.28' r='40'/><circle cx='80' cy='69.28' r='40'/><circle cx='40' cy='138.56' r='40'/><circle cx='40' cy='69.28' r='40'/><circle cx='40' cy='69.28' r='6'/>` },
+  // Zellige — octagons and squares with eight-point centres
+  amethyst: { size: [100, 100], paths: `<path d='${ngon(50, 50, 8, 38, Math.PI / 8)}'/><path d='${ngon(0, 0, 4, 13.6, Math.PI / 4)}'/><path d='${ngon(100, 0, 4, 13.6, Math.PI / 4)}'/><path d='${ngon(0, 100, 4, 13.6, Math.PI / 4)}'/><path d='${ngon(100, 100, 4, 13.6, Math.PI / 4)}'/><path d='${star(50, 50, 8, 22, 3)}'/>` },
+  // High contrast — light, sparse eight-point stars
+  contrast: { size: [160, 160], paths: `<path d='${star(80, 80, 8, 30, 3)}'/>` },
 };
 
-export function PatternLayer({ theme, highContrast }: { theme: Theme; highContrast: boolean }) {
-  if (highContrast || theme === 'minimal') return null;
-  const op = theme === 'ornamental' ? 0.16 : 0.1;
-  return <div className="bg-pattern" style={{ backgroundImage: STAR_TILE('#D4AF61', op) }} aria-hidden />;
+/** Pattern stroke colour + opacity, and points-of-light colour, per theme. */
+export const THEME_INK: Record<ThemeKey, { stroke: string; opacity: number; light: string }> = {
+  ornamental: { stroke: '#D4AF61', opacity: 0.16, light: '241,223,168' },
+  navy: { stroke: '#D4AF61', opacity: 0.13, light: '200,214,255' },
+  minimal: { stroke: '#C9CFD6', opacity: 0.09, light: '220,226,232' },
+  maroon: { stroke: '#E0A46B', opacity: 0.15, light: '246,206,160' },
+  turquoise: { stroke: '#F2D9A0', opacity: 0.12, light: '214,246,238' },
+  amethyst: { stroke: '#D8C3F0', opacity: 0.12, light: '232,218,250' },
+  contrast: { stroke: '#FFFFFF', opacity: 0.07, light: '255,255,255' },
+};
+
+export const THEME_LABELS: Record<Theme, string> = {
+  ornamental: 'زمردي وذهبي — نجمة ثمانية',
+  navy: 'كحلي وذهبي — زهرة اثنا عشرية',
+  maroon: 'عنابي ونحاسي — ربع الحزب',
+  turquoise: 'فيروزي ورملي — دوائر متداخلة',
+  amethyst: 'بنفسجي وفضي — زليج مثمّن',
+  minimal: 'فحمي وفضي — نجمة سداسية',
+};
+
+function tile(theme: ThemeKey) {
+  const p = PATTERNS[theme];
+  const ink = THEME_INK[theme];
+  const [w, h] = p.size;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}' viewBox='0 0 ${w} ${h}'><g fill='none' stroke='${ink.stroke}' stroke-opacity='${ink.opacity}' stroke-width='${p.width ?? 1.1}'>${p.paths}</g></svg>`;
+  return { image: `url("data:image/svg+xml,${encodeURIComponent(svg)}")`, size: `${w}px ${h}px` };
 }
 
-export function LightLayer({ mode, intensity, theme }: { mode: Bg; intensity: number; theme: Theme }) {
+export function PatternLayer({ theme, highContrast }: { theme: Theme; highContrast: boolean }) {
+  const t = tile(highContrast ? 'contrast' : theme);
+  return <div className="bg-pattern" style={{ backgroundImage: t.image, backgroundSize: t.size }} aria-hidden />;
+}
+
+export function LightLayer({ mode, intensity, theme }: { mode: Bg; intensity: number; theme: ThemeKey }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = ref.current;
@@ -36,7 +87,7 @@ export function LightLayer({ mode, intensity, theme }: { mode: Bg; intensity: nu
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
     resize();
-    const gold = theme === 'navy' ? '200,214,255' : '241,223,168';
+    const rgb = (THEME_INK[theme] ?? THEME_INK.ornamental).light;
     const pts = Array.from({ length: 60 }, () => ({
       x: Math.random(), y: Math.random(), r: 0.6 + Math.random() * 1.8,
       vy: -(0.004 + Math.random() * 0.01), vx: (Math.random() - 0.5) * 0.004, a: 0.15 + Math.random() * 0.35, p: Math.random() * Math.PI * 2,
@@ -58,7 +109,7 @@ export function LightLayer({ mode, intensity, theme }: { mode: Bg; intensity: nu
         if (q.x < 0) q.x = 1; if (q.x > 1) q.x = 0;
         const alpha = q.a * (0.55 + 0.45 * Math.sin(q.p)) * (0.4 + intensity / 160);
         ctx.beginPath();
-        ctx.fillStyle = `rgba(${gold},${alpha.toFixed(3)})`;
+        ctx.fillStyle = `rgba(${rgb},${alpha.toFixed(3)})`;
         ctx.arc(q.x * w, q.y * h, q.r, 0, Math.PI * 2);
         ctx.fill();
       }

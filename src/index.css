@@ -23,12 +23,16 @@ button { font-family: inherit; }
 .display-root.theme-navy { --bg1: #06112A; --bg2: #0E2244; --bg3: #17325E; --muted-d: #A8B6D3; --line-d: rgba(212,175,97,.24); }
 .display-root.theme-minimal { --bg1: #030806; --bg2: #08110E; --bg3: #0C1A15; --gold: #CDB27E; --gold-l: #E9DDBF; --line-d: rgba(255,255,255,.10); --hi: rgba(205,178,126,.10); }
 .display-root.theme-contrast { --bg1: #000; --bg2: #000; --bg3: #000; --gold: #FFD24D; --gold-l: #FFE38A; --text: #FFFFFF; --muted-d: #FFFFFF; --line-d: rgba(255,255,255,.55); --hi: rgba(255,210,77,.22); --hi-line: #FFD24D; }
-.display-root.is-friday:not(.theme-contrast) { --bg2: #0E4535; --bg3: #175C45; --gold: #E2BE6A; --gold-l: #F7E6B2; --hi: rgba(226,190,106,.18); }
+.display-root.theme-maroon { --bg1: #22080D; --bg2: #3F111B; --bg3: #5E1C2A; --gold: #E0A46B; --gold-l: #F6CEA0; --muted-d: #D9B8A8; --line-d: rgba(224,164,107,.26); --hi: rgba(224,164,107,.14); --hi-line: #E0A46B; }
+.display-root.theme-turquoise { --bg1: #03211F; --bg2: #08413F; --bg3: #0F605C; --gold: #EBCB8B; --gold-l: #F7E5BC; --muted-d: #A8D5CF; --line-d: rgba(235,203,139,.26); --hi: rgba(235,203,139,.13); --hi-line: #EBCB8B; }
+.display-root.theme-amethyst { --bg1: #130A25; --bg2: #251442; --bg3: #3A2063; --gold: #D9C08A; --gold-l: #EEE0C0; --muted-d: #C6B8DE; --line-d: rgba(216,195,240,.24); --hi: rgba(216,195,240,.12); --hi-line: #D8C3F0; }
+.display-root.is-friday.theme-ornamental { --bg2: #0E4535; --bg3: #175C45; }
+.display-root.is-friday:not(.theme-contrast) { --hi: rgba(226,190,106,.18); }
 
 .bg-base { position: absolute; inset: 0; background:
   radial-gradient(ellipse 70% 60% at 50% 42%, var(--bg3) 0%, transparent 70%),
   linear-gradient(180deg, var(--bg2) 0%, var(--bg1) 85%); }
-.theme-minimal .bg-base, .theme-contrast .bg-base { background: linear-gradient(180deg, var(--bg2), var(--bg1)); }
+.theme-contrast .bg-base { background: linear-gradient(180deg, var(--bg2), var(--bg1)); }
 .bg-pattern { position: absolute; inset: 0; background-size: 120px 120px; background-position: center;
   -webkit-mask-image: radial-gradient(ellipse 80% 75% at 50% 45%, transparent 30%, #000 85%);
   mask-image: radial-gradient(ellipse 80% 75% at 50% 45%, transparent 30%, #000 85%); }
@@ -236,4 +240,5 @@ button { font-family: inherit; }
 .m-bell.is-on { background: var(--gold); color: #12251E; border-color: var(--gold); }
 .m-tip { position: absolute; top: 52px; left: 0; z-index: 30; width: 240px; direction: rtl; font-size: 13px; font-weight: 700; line-height: 1.6;
   background: #FBF7EF; color: #102A43; border-radius: 12px; padding: 8px 10px; box-shadow: 0 6px 20px rgba(0,0,0,.3); }
-.m-name-tap { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.m-name-tap, .name-tap { cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+.display-root { touch-action: manipulation; }

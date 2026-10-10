@@ -50,6 +50,27 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
   }, [cfg.display.presentation, cfg.display.autoHideControls, phone]);
   useEffect(() => { if (cfg.display.presentation) setControls(false); else reveal(); }, [cfg.display.presentation, reveal]);
 
+  // Full screen: every button disappears after 2 s; any touch brings back ONLY the exit button.
+  const [fsBtn, setFsBtn] = useState(false);
+  const fsTimer = useRef<ReturnType<typeof setTimeout>>();
+  const showFsBtn = useCallback((ms: number) => {
+    setFsBtn(true);
+    if (fsTimer.current) clearTimeout(fsTimer.current);
+    fsTimer.current = setTimeout(() => setFsBtn(false), ms);
+  }, []);
+  useEffect(() => {
+    if (fs) showFsBtn(2000);
+    else { setFsBtn(false); if (fsTimer.current) clearTimeout(fsTimer.current); if (!cfg.display.presentation) reveal(); }
+  }, [fs]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Mosque picker: double tap / double click on the mosque name
+  const [picker, setPicker] = useState(false);
+  const nameTaps = useRef(0);
+  const onNameTap = useCallback(() => {
+    const t = Date.now();
+    if (t - nameTaps.current < 450) { nameTaps.current = 0; setPicker(true); } else nameTaps.current = t;
+  }, []);
+
   // emergency exit: OK/Enter pressed 3 times within 2 s, or triple tap
   const presses = useRef<number[]>([]);
   const emergencyPress = useCallback(() => {
@@ -64,22 +85,23 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
     if (adminOpen) return;
     const onKey = (e: KeyboardEvent) => {
       const k = e.key;
-      if (k === 'Enter' || k === ' ' || k === 'OK' || k === 'Select') { if (emergencyPress()) return; reveal(10000); return; }
+      if (k === 'Enter' || k === ' ' || k === 'OK' || k === 'Select') { if (emergencyPress()) return; if (fs) { showFsBtn(4000); return; } reveal(10000); return; }
       if (k === 'Escape' || k === 'Back' || k === 'GoBack') { setControls((v) => !v); return; }
       if (k === 'f' || k === 'F') { void toggleFullscreen(); return; }
       if (k === 'p' || k === 'P') { void updateConfig((c) => { c.display.presentation = !c.display.presentation; }); return; }
       if ((k === 's' || k === 'S') && e.shiftKey) { onOpenAdmin(); return; }
       if (k.startsWith('Arrow') || k === 'ContextMenu' || k === 'Menu') reveal(10000);
     };
-    const onMove = () => { if (!cfg.display.presentation) reveal(); };
+    const onMove = () => { if (!cfg.display.presentation && !fs) reveal(); };
     window.addEventListener('keydown', onKey);
     window.addEventListener('mousemove', onMove);
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('mousemove', onMove); };
-  }, [adminOpen, emergencyPress, reveal, cfg.display.presentation, onOpenAdmin]);
+  }, [adminOpen, emergencyPress, reveal, cfg.display.presentation, onOpenAdmin, fs, showFsBtn]);
 
   const taps = useRef<number[]>([]);
   const onPointer = () => {
     if (emergencyPress()) return;
+    if (fs) { showFsBtn(3000); return; }
     const t = Date.now();
     taps.current = [...taps.current.filter((x) => t - x < 600), t];
     if (taps.current.length >= 2 || !cfg.display.presentation) { taps.current = []; reveal(10000); }
@@ -91,9 +113,14 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
   ].join(' ');
 
   const sim = simulationInfo();
+  const cloudCode = useCloud().binding?.code ?? null;
   const showControls = controls && !(state.phase === 'quiet' && !phone);
 
-  const controlBar = showControls && (
+  const controlBar = fs ? (fsBtn && (
+    <div className="ctrl-bar" role="toolbar" aria-label="الخروج من ملء الشاشة">
+      <button className="ctrl-btn" onClick={() => void toggleFullscreen()} aria-label="الخروج من ملء الشاشة"><IconExitFullscreen size={phone ? 22 : 26} /></button>
+    </div>
+  )) : showControls && (
     <div className="ctrl-bar" role="toolbar" aria-label="أزرار التحكم">
       <button className="ctrl-btn" onClick={onOpenAdmin} aria-label="الإعدادات"><IconSettings size={phone ? 22 : 26} /></button>
       <button className="ctrl-btn" onClick={() => void toggleFullscreen()} aria-label={fs ? 'الخروج من ملء الشاشة' : 'ملء الشاشة'}>
@@ -118,18 +145,19 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
     <div className={`display-root ${themeClass} ${portrait ? 'is-portrait' : ''} ${cfg.display.presentation ? 'is-presentation' : ''}`} onPointerDown={onPointer}>
       <div className="bg-base" aria-hidden />
       <PatternLayer theme={cfg.display.theme} highContrast={cfg.display.highContrast} />
-      <LightLayer mode={cfg.display.highContrast ? 'static' : cfg.display.background} intensity={cfg.display.animationIntensity} theme={cfg.display.theme} />
+      <LightLayer mode={cfg.display.background} intensity={cfg.display.highContrast ? Math.min(30, cfg.display.animationIntensity) : cfg.display.animationIntensity} theme={cfg.display.highContrast ? 'contrast' : cfg.display.theme} />
       {simBanner}
       {portrait
-        ? <MobileView state={state} cfg={cfg} hasSchedule={!!schedule} controls={controlBar} />
+        ? <MobileView state={state} cfg={cfg} hasSchedule={!!schedule} controls={controlBar} onNameTap={onNameTap} />
         : (
           <Stage vpW={vp.w} vpH={vp.h}>
             {state.phase === 'adhkar'
               ? <AdhkarScreen state={state} cfg={cfg} />
-              : <TvView state={state} cfg={cfg} hasSchedule={!!schedule} onOpenAdmin={onOpenAdmin} />}
+              : <TvView state={state} cfg={cfg} hasSchedule={!!schedule} onOpenAdmin={onOpenAdmin} onNameTap={onNameTap} />}
             {controlBar}
           </Stage>
         )}
+      {picker && <MosquePicker current={cloudCode} onClose={() => setPicker(false)} />}
     </div>
   );
 }
@@ -177,7 +205,7 @@ function prayerRowLabel(slot: PrayerKey, state: DisplayState, cfg: AppConfig) {
 
 // ------------------------------------------------------------------------------ TV (16:9)
 
-function TvView({ state, cfg, hasSchedule, onOpenAdmin }: { state: DisplayState; cfg: AppConfig; hasSchedule: boolean; onOpenAdmin: () => void }) {
+function TvView({ state, cfg, hasSchedule, onOpenAdmin, onNameTap }: { state: DisplayState; cfg: AppConfig; hasSchedule: boolean; onOpenAdmin: () => void; onNameTap: () => void }) {
   const d = cfg.display;
   const { hijri, greg, weekday } = useDates(state, cfg);
   const clock = formatClock(state.parts.hour * 60 + state.parts.minute, state.parts.second, d.timeFormat, d.digits);
@@ -248,7 +276,7 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin }: { state: DisplayState;
     <div className="tv">
       <header className={`tv-head tv-head--${d.namePosition}`}>
         {cfg.mosque.logoDataUrl && <img className="tv-logo" src={cfg.mosque.logoDataUrl} alt="" />}
-        <div className="tv-names">
+        <div className="tv-names name-tap" onClick={onNameTap} title="اضغط مرتين لتغيير المسجد">
           <FitText text={cfg.mosque.nameAr || 'اسم المسجد'} base={Math.round(84 * d.nameScale / 100)} min={40} lines={2} className="tv-name" />
           {d.showEnglishName && cfg.mosque.nameEn && <div className="tv-name-en" dir="ltr">{cfg.mosque.nameEn}</div>}
         </div>
@@ -323,7 +351,7 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin }: { state: DisplayState;
 
 // ------------------------------------------------------------------------------ Phone / portrait
 
-function MobileView({ state, cfg, hasSchedule, controls }: { state: DisplayState; cfg: AppConfig; hasSchedule: boolean; controls: React.ReactNode }) {
+function MobileView({ state, cfg, hasSchedule, controls, onNameTap }: { state: DisplayState; cfg: AppConfig; hasSchedule: boolean; controls: React.ReactNode; onNameTap: () => void }) {
   const mSchedule = useApp((s) => s.schedule);
   const d = cfg.display;
   const { hijri, greg, weekday } = useDates(state, cfg);
@@ -331,17 +359,12 @@ function MobileView({ state, cfg, hasSchedule, controls }: { state: DisplayState
   const plan = state.plan;
   const cd = state.countdown;
   const inSequence = state.suppressedByMobile && state.sequence;
-  const cloudBinding = useCloud().binding;
-  const [picker, setPicker] = useState(false);
-  // double tap on the mosque name opens the picker (dblclick is unreliable on touch screens)
-  const lastTap = useRef(0);
-  const onNameTap = () => { const t = Date.now(); if (t - lastTap.current < 400) { lastTap.current = 0; setPicker(true); } else lastTap.current = t; };
 
   return (
     <div className="m-root">
       <header className="m-head">
         <div className="m-names">
-          <div onPointerUp={onNameTap} role="button" aria-label="اضغط مرتين لتغيير المسجد" className="m-name-tap">
+          <div onClick={onNameTap} role="button" aria-label="اضغط مرتين لتغيير المسجد" className="m-name-tap name-tap">
             <FitText text={cfg.mosque.nameAr || 'اسم المسجد'} base={30} min={20} lines={2} className="m-name" />
           </div>
           {d.showEnglishName && cfg.mosque.nameEn && <div className="m-name-en" dir="ltr">{cfg.mosque.nameEn}</div>}
@@ -415,7 +438,6 @@ function MobileView({ state, cfg, hasSchedule, controls }: { state: DisplayState
         </div>
       )}
       {plan?.isFriday && cfg.friday.announcement && <div className="m-announce">{cfg.friday.announcement}</div>}
-      {picker && <MosquePicker current={cloudBinding?.code ?? null} onClose={() => setPicker(false)} />}
     </div>
   );
 }
