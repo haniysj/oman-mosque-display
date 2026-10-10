@@ -107,6 +107,30 @@ button { font-family: inherit; }
 .countdown-unit { font-size: 36px; color: var(--muted-d); font-weight: 600; }
 .countdown.is-final .countdown-digits { color: var(--gold-l); font-size: 224px; }
 
+/* Countdown focus: the rest of the screen fades and blurs slightly, the countdown grows in a distinct colour */
+.display-root { --cd: #FFC94D; --cd-glow: rgba(255, 201, 77, .45); --cd-final: #FFF6DA; }
+.display-root.theme-contrast { --cd: #FFD24D; --cd-glow: rgba(255, 210, 77, .35); --cd-final: #FFFFFF; }
+.tv-head, .tv-main > .panel, .tv-foot, .tv .mihrab, .m-head, .m-meta, .m-table, .m-next, .m-note, .m-announce, .m-root .source-badge {
+  transition: filter .6s ease, opacity .6s ease; }
+.tv.is-countdown .tv-head, .tv.is-countdown .tv-main > .panel, .tv.is-countdown .tv-foot { filter: blur(3px); opacity: .3; }
+.tv.is-countdown .mihrab { opacity: .45; }
+.tv.is-countdown .tv-center { overflow: visible; z-index: 2; }
+.tv.is-countdown .countdown { padding-top: 40px; }
+.tv.is-countdown .countdown-clock { color: var(--text); opacity: .75; }
+.tv.is-countdown .countdown-label { font-size: 66px; color: var(--cd); }
+.tv.is-countdown .countdown-digits { font-size: 300px; color: var(--cd); text-shadow: 0 0 44px var(--cd-glow), 0 0 12px var(--cd-glow); }
+.tv.is-countdown .countdown.is-final .countdown-digits { font-size: 330px; color: var(--cd-final); animation: cd-pulse 1s ease-in-out infinite; }
+.tv.is-countdown .countdown-unit { font-size: 42px; color: var(--cd); opacity: .85; }
+.m-root.is-countdown .m-head { opacity: .45; }
+.m-root.is-countdown .m-meta, .m-root.is-countdown .m-table, .m-root.is-countdown .m-next,
+.m-root.is-countdown .m-note, .m-root.is-countdown .m-announce, .m-root.is-countdown .source-badge { filter: blur(2px); opacity: .3; }
+.m-root.is-countdown .m-clock { border-color: transparent; }
+.m-root.is-countdown .m-count-label { font-size: 26px; color: var(--cd); }
+.m-root.is-countdown .m-count-digits { font-size: 128px; color: var(--cd); text-shadow: 0 0 28px var(--cd-glow); }
+.m-root.is-countdown .m-count.is-final .m-count-digits { color: var(--cd-final); animation: cd-pulse 1s ease-in-out infinite; }
+@keyframes cd-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+@media (prefers-reduced-motion: reduce) { .countdown-digits, .m-count-digits { animation: none !important; } .tv-head, .tv-main > .panel, .tv-foot { transition: none; } }
+
 .tv-foot { display: flex; align-items: center; justify-content: space-between; gap: 24px; border-top: 2px solid var(--line-d); margin-bottom: 26px; padding: 0 12px; }
 .foot-item { display: flex; align-items: center; gap: 18px; font-size: 40px; white-space: nowrap; }
 .foot-label { font-weight: 700; color: var(--text); }

@@ -61,6 +61,7 @@ export function defaultConfig(): AppConfig {
       namePosition: 'center',
       panelsSwapped: false,
       showSeconds: true,
+      countdownFocus: true,
       showEnglishName: true,
       showSourceBadge: true,
       autoHideControls: true,

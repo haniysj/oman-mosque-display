@@ -273,7 +273,7 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin, onNameTap }: { state: Di
   const final = cd && cd.seconds <= 10;
 
   return (
-    <div className="tv">
+    <div className={`tv ${cd && d.countdownFocus ? 'is-countdown' : ''}`}>
       <header className={`tv-head tv-head--${d.namePosition}`}>
         {cfg.mosque.logoDataUrl && <img className="tv-logo" src={cfg.mosque.logoDataUrl} alt="" />}
         <div className="tv-names name-tap" onClick={onNameTap} title="اضغط مرتين لتغيير المسجد">
@@ -361,7 +361,7 @@ function MobileView({ state, cfg, hasSchedule, controls, onNameTap }: { state: D
   const inSequence = state.suppressedByMobile && state.sequence;
 
   return (
-    <div className="m-root">
+    <div className={`m-root ${cd && d.countdownFocus ? 'is-countdown' : ''}`}>
       <header className="m-head">
         <div className="m-names">
           <div onClick={onNameTap} role="button" aria-label="اضغط مرتين لتغيير المسجد" className="m-name-tap name-tap">

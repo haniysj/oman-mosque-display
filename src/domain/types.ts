@@ -146,6 +146,7 @@ export interface DisplayPreferences {
   namePosition: 'center' | 'right';
   panelsSwapped: boolean; // swap left/right panels
   showSeconds: boolean;
+  countdownFocus: boolean; // dim + blur the rest of the screen during the 60-second countdown
   showEnglishName: boolean;
   showSourceBadge: boolean; // badge for calculated data (demo is always labelled)
   autoHideControls: boolean;
