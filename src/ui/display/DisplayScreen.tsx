@@ -175,10 +175,12 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin }: { state: DisplayState;
   const panelStyle = { '--panel-scale': d.panelScale / 100 } as CSSProperties;
   const schedule = useApp((s) => s.schedule);
   const cov = coverage(schedule, state.today);
+  const src = schedule?.meta.source;
+  const badgeShown = src === 'demo' || (src === 'calculated' && cfg.display.showSourceBadge);
 
   const prayers = (
-    <section className="panel" style={panelStyle} aria-label="أوقات الصلاة">
-      <h2 className="panel-title">أوقات الصلاة</h2>
+    <section className="panel" style={panelStyle} aria-label="الأذان">
+      <h2 className="panel-title">الأذان</h2>
       {plan ? (
         <ul className="rows">
           {(['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha'] as const).map((k) => {
@@ -204,8 +206,8 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin }: { state: DisplayState;
   );
 
   const iqamah = (
-    <section className="panel" style={panelStyle} aria-label="الإقامة والضحى">
-      <h2 className="panel-title">الإقامة والضحى</h2>
+    <section className="panel" style={panelStyle} aria-label="الإقامة">
+      <h2 className="panel-title">الإقامة</h2>
       {plan ? (
         <ul className="rows">
           {PRAYER_KEYS.flatMap((k) => {
@@ -241,7 +243,6 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin }: { state: DisplayState;
           {d.showEnglishName && cfg.mosque.nameEn && <div className="tv-name-en" dir="ltr">{cfg.mosque.nameEn}</div>}
         </div>
       </header>
-      <SourceBadge cfg={cfg} />
 
       <main className={`tv-main ${d.panelsSwapped ? 'is-swapped' : ''}`}>
         {prayers}
@@ -291,9 +292,11 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin }: { state: DisplayState;
               <span className="foot-sep" aria-hidden />
               <span className="foot-value">بعد <StableDigits text={remainingText(state, state.nextAdhan, d.digits)} /></span>
             </div>
-            {plan?.isFriday && cfg.friday.announcement
-              ? <div className="foot-note">{cfg.friday.announcement}</div>
-              : <div className="foot-dot" aria-hidden />}
+            {badgeShown
+              ? <SourceBadge cfg={cfg} />
+              : plan?.isFriday && cfg.friday.announcement
+                ? <div className="foot-note">{cfg.friday.announcement}</div>
+                : <div className="foot-dot" aria-hidden />}
             <div className="foot-item">
               <span className="foot-label">{state.nextIqamah ? eventPhrase(state.nextIqamah) : 'الإقامة القادمة'}</span>
               <span className="foot-sep" aria-hidden />

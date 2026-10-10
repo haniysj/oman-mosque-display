@@ -202,7 +202,7 @@ export function DisplaySection() {
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
           <Toggle checked={d.highContrast} onChange={(v) => set((c) => { c.display.highContrast = v; })} label="تباين عالٍ" hint="خلفية سوداء ونص أبيض وذهبي ساطع لقاعات واسعة أو شاشات ضعيفة." />
           <Toggle checked={d.showSeconds} onChange={(v) => set((c) => { c.display.showSeconds = v; })} label="عرض الثواني" />
-          <Toggle checked={d.panelsSwapped} onChange={(v) => set((c) => { c.display.panelsSwapped = v; })} label="تبديل موضع اللوحتين" hint="الافتراضي: أوقات الصلاة يميناً، الإقامة يساراً." />
+          <Toggle checked={d.panelsSwapped} onChange={(v) => set((c) => { c.display.panelsSwapped = v; })} label="تبديل موضع اللوحتين" hint="الافتراضي: الأذان يميناً، الإقامة يساراً." />
           <Toggle checked={d.showEnglishName} onChange={(v) => set((c) => { c.display.showEnglishName = v; })} label="عرض الاسم الإنجليزي" />
           <Toggle checked={d.showSourceBadge} onChange={(v) => set((c) => { c.display.showSourceBadge = v; })} label="شارة «مواقيت محسوبة»" hint="بيانات DEMO تُوسم دائماً ولا يمكن إخفاء وسمها." />
         </div>

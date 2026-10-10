@@ -53,6 +53,8 @@ for (const [w, h] of [[1920, 1080], [3840, 2160], [1366, 768], [1024, 768]]) {
       ok(`display-${w}x${h}: clock visible`, await p.locator('.clock-time').isVisible());
       ok(`display-${w}x${h}: 6 + 6 rows`, (await p.locator('.panel .row').count()) === 12);
       ok(`display-${w}x${h}: demo badge`, await p.locator('.source-badge--demo').isVisible());
+      const nb = await p.locator('.tv-name').boundingBox(); const bb = await p.locator('.source-badge').boundingBox();
+      ok(`display-${w}x${h}: badge clear of name`, !(nb && bb && bb.y < nb.y + nb.height && bb.y + bb.height > nb.y));
     } });
 }
 for (const [name, dev] of [['phone-390x844', IPHONE], ['phone-375x667', devices['iPhone SE']]]) {
