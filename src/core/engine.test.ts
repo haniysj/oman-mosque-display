@@ -134,6 +134,8 @@ describe('6–7. countdown', () => {
     expect(st.countdown).toBeNull();
     expect(st.nextAdhan?.slot).toBe('maghrib');
     expect(st.currentIqamahSlot).toBe('asr');
+    expect(st.nextPrayerSlot).toBeNull(); // "next" tag waits until the Asr iqamah has passed
+    expect(computeState(input(at(SAT, '15:30'))).nextPrayerSlot).toBe('maghrib');
   });
 });
 

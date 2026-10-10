@@ -228,3 +228,12 @@ button { font-family: inherit; }
 .mp-meta { font-size: 12px; color: #627D98; }
 .mp-empty { text-align: center; color: #627D98; padding: 24px 0; font-size: 14px; }
 .mp-foot { margin: 8px 0 0; font-size: 12px; color: #627D98; }
+
+.m-actions { display: flex; align-items: flex-start; gap: 8px; direction: ltr; }
+.m-actions .ctrl-bar { position: static; }
+.m-bell-wrap { position: relative; }
+.m-bell { width: 44px; height: 44px; border-radius: 14px; }
+.m-bell.is-on { background: var(--gold); color: #12251E; border-color: var(--gold); }
+.m-tip { position: absolute; top: 52px; left: 0; z-index: 30; width: 240px; direction: rtl; font-size: 13px; font-weight: 700; line-height: 1.6;
+  background: #FBF7EF; color: #102A43; border-radius: 12px; padding: 8px 10px; box-shadow: 0 6px 20px rgba(0,0,0,.3); }
+.m-name-tap { cursor: pointer; -webkit-tap-highlight-color: transparent; }

@@ -4,6 +4,7 @@ import { classifyDevice, isPhone, readDeviceEnv, type DeviceClass } from '../../
 import { autoExtendIfNeeded, getState, log, useApp } from '../../store/appStore';
 import { now as clockNow, subscribe } from '../../services/clock';
 import { maybeApplyUpdate } from '../../services/pwa';
+import { maybeRemind } from '../../services/notify';
 import { MINUTE } from '../../core/time';
 
 export function useNow(): number {
@@ -50,6 +51,8 @@ export function useDisplayState(): { state: DisplayState; device: DeviceClass; p
     if (Math.abs(r.clockJump) > 2 * MINUTE) log('warn', `قفزة في ساعة الجهاز أو استئناف بعد توقف: ${Math.round(r.clockJump / 1000)} ثانية — أعيد حساب الحالة`);
     const nextAt = Math.min(state.nextAdhan?.at ?? Infinity, state.nextIqamah?.at ?? Infinity);
     maybeApplyUpdate(state.phase === 'normal' && !state.countdown && nextAt - state.now > 3 * MINUTE);
+    const c = getState().config;
+    maybeRemind(state, c.mosque.nameAr, c.display.timeFormat);
   }, [state]);
 
   // date rollover: keep the calibrated timetable filled ahead

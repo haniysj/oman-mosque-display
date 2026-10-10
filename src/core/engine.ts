@@ -149,8 +149,9 @@ export function computeState(input: EngineInput): DisplayState {
   let nextPrayerSlot: SlotKey | null = null;
   let currentIqamahSlot: SlotKey | null = null;
   if (tPlan) {
-    nextPrayerSlot = PRAYER_KEYS.find((s) => tPlan.adhan[s] > now) ?? null;
     currentIqamahSlot = PRAYER_KEYS.find((s) => tPlan.adhan[s] <= now && now < tPlan.iqamah[s].at) ?? null;
+    // "Next prayer" is only marked once the current prayer's iqamah has passed.
+    nextPrayerSlot = currentIqamahSlot ? null : PRAYER_KEYS.find((s) => tPlan.adhan[s] > now) ?? null;
   }
 
   // Countdown (≤ 60 s) — choose the earliest qualifying event

@@ -14,6 +14,7 @@ import { eventPhrase, FitText, Pill, remainingText, StableDigits, TimeText } fro
 import { useDisplayState } from './useDisplay';
 import { AdhkarScreen } from './AdhkarScreen';
 import { MosquePicker } from './MosquePicker';
+import { ReminderBell } from './ReminderBell';
 import { useCloud } from '../../services/cloud';
 
 const PRAYER_NAMES: Record<PrayerKey, string> = { fajr: 'الفجر', dhuhr: 'الظهر', asr: 'العصر', maghrib: 'المغرب', isha: 'العشاء' };
@@ -332,20 +333,23 @@ function MobileView({ state, cfg, hasSchedule, controls }: { state: DisplayState
   const inSequence = state.suppressedByMobile && state.sequence;
   const cloudBinding = useCloud().binding;
   const [picker, setPicker] = useState(false);
+  // double tap on the mosque name opens the picker (dblclick is unreliable on touch screens)
+  const lastTap = useRef(0);
+  const onNameTap = () => { const t = Date.now(); if (t - lastTap.current < 400) { lastTap.current = 0; setPicker(true); } else lastTap.current = t; };
 
   return (
     <div className="m-root">
       <header className="m-head">
         <div className="m-names">
-          <FitText text={cfg.mosque.nameAr || 'اسم المسجد'} base={30} min={20} lines={2} className="m-name" />
+          <div onPointerUp={onNameTap} role="button" aria-label="اضغط مرتين لتغيير المسجد" className="m-name-tap">
+            <FitText text={cfg.mosque.nameAr || 'اسم المسجد'} base={30} min={20} lines={2} className="m-name" />
+          </div>
           {d.showEnglishName && cfg.mosque.nameEn && <div className="m-name-en" dir="ltr">{cfg.mosque.nameEn}</div>}
-          <button className="m-pick" onClick={() => setPicker(true)}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" /></svg>
-            {cloudBinding ? 'تغيير المسجد' : 'اختيار المسجد'}
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="m6 9 6 6 6-6" /></svg>
-          </button>
         </div>
-        {controls}
+        <div className="m-actions">
+          <ReminderBell />
+          {controls}
+        </div>
       </header>
       <SourceBadge kind={todaySourceBadge(mSchedule, state.today, cfg)} />
 
@@ -401,7 +405,7 @@ function MobileView({ state, cfg, hasSchedule, controls }: { state: DisplayState
           </tbody>
         </table>
       ) : (
-        <div className="m-empty">{hasSchedule ? 'جدول المواقيت لا يغطي تاريخ اليوم' : 'اختر المسجد لعرض مواقيته'}</div>
+        <div className="m-empty">{hasSchedule ? 'جدول المواقيت لا يغطي تاريخ اليوم' : 'اضغط مرتين على اسم المسجد لاختيار مسجدك'}</div>
       )}
 
       {plan && (state.nextAdhan || state.nextIqamah) && (
