@@ -43,11 +43,12 @@ const emitChange = (k: ChangeKind) => changeListeners.forEach((f) => { try { f(k
 export async function applyCloudData(d: { config?: AppConfig; adhkar?: AdhkarItem[]; schedule?: PrayerSchedule | null }) {
   if (d.config) { await store.saveConfig(d.config); setClockOffset(d.config.display.clockOffsetMs); }
   if (d.adhkar) await store.saveAdhkar(d.adhkar);
-  if (d.schedule) await store.commitSchedule(d.schedule, null);
+  // schedule: undefined = unchanged; null = this wilayat has no timetable → clear it
+  if (d.schedule !== undefined) await store.commitSchedule(d.schedule, null);
   publish({
     ...(d.config ? { config: d.config } : {}),
     ...(d.adhkar ? { adhkar: d.adhkar } : {}),
-    ...(d.schedule ? { schedule: d.schedule } : {}),
+    ...(d.schedule !== undefined ? { schedule: d.schedule } : {}),
   });
 }
 

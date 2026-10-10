@@ -75,6 +75,11 @@ const ERR_AR: Record<string, string> = {
   BAD_SCHEDULE: 'جدول المواقيت غير صالح',
 };
 
+/** The server is missing a database function (an SQL update was not run yet). */
+export class MissingRpcError extends Error {
+  constructor(public fn: string) { super('قاعدة بيانات المساجد على الخادم تحتاج تحديثاً — شغّل ملف SQL المرفق'); }
+}
+
 async function rpc<T>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new Error('لا يوجد اتصال بالإنترنت');
   const ctrl = new AbortController();
@@ -92,7 +97,7 @@ async function rpc<T>(fn: string, args: Record<string, unknown> = {}): Promise<T
       let msg = text;
       try { msg = (JSON.parse(text) as { message?: string }).message ?? text; } catch { /* keep text */ }
       const code = Object.keys(ERR_AR).find((k) => msg.includes(k));
-      if (res.status === 404 || /Could not find the function/i.test(msg)) throw new Error('قاعدة بيانات المساجد غير مثبتة بعد على الخادم');
+      if (res.status === 404 || /Could not find the function/i.test(msg)) throw new MissingRpcError(fn);
       if (/violates check constraint.*code/i.test(msg)) throw new Error('رمز المسجد غير صالح: أحرف إنجليزية صغيرة وأرقام وشرطة فقط (3–40)');
       throw new Error(code ? ERR_AR[code] : `خطأ من الخادم (${res.status})`);
     }
@@ -100,6 +105,7 @@ async function rpc<T>(fn: string, args: Record<string, unknown> = {}): Promise<T
   } catch (e) {
     if ((e as Error).name === 'AbortError') throw new Error('انتهت مهلة الاتصال بالخادم');
     if (e instanceof TypeError) throw new Error('تعذّر الوصول إلى الخادم');
+    if (e instanceof MissingRpcError) throw e;
     throw e;
   } finally {
     clearTimeout(t);
@@ -169,6 +175,7 @@ export function syncNow(force = false): Promise<boolean> {
       if (!b) throw new Error(`المسجد «${code}» غير موجود في السحابة`);
       const local = getState();
       const config = mergeRemoteConfig(local.config, b.mosque.config, b.mosque, b.timetable?.calibration ?? null);
+      // No timetable for this wilayat → clear (never keep another wilayat's times on screen)
       const schedule = b.timetable && isValidScheduleShape(b.timetable.schedule) ? b.timetable.schedule : null;
       const adhkar = Array.isArray(b.mosque.adhkar) && b.mosque.adhkar.length ? b.mosque.adhkar : undefined;
       await applyCloudData({ config, adhkar, schedule });
@@ -239,6 +246,39 @@ export async function updateMosque(code: string, cfg: AppConfig) {
   return r;
 }
 
+// ---------------------------------------------------------------- wilayat timetables (each one independent)
+
+export interface WilayatTimetable { wilayat_id: string; governorate_id: string; schedule: PrayerSchedule; calibration: CalibrationProfile | null; version: number; updated_at: string }
+
+/** Reads one wilayat's stored timetable (null when none is stored). */
+export async function getWilayatTimetable(wilayatId: string): Promise<WilayatTimetable | null> {
+  try {
+    return await rpc<WilayatTimetable | null>('mosque_timetable_get', { p_wilayat_id: wilayatId });
+  } catch (e) {
+    if (!(e instanceof MissingRpcError)) throw e;
+    // Before the v2 SQL update: read it through any mosque of that wilayat.
+    const m = (await listMosques()).find((x) => x.wilayat_id === wilayatId);
+    if (!m) {
+      const exists = (await listTimetables()).some((t) => t.wilayat_id === wilayatId);
+      if (exists) throw e;
+      return null;
+    }
+    const b = await rpc<Bundle | null>('mosque_bundle', { p_code: m.code });
+    return b?.timetable ? { ...b.timetable, governorate_id: m.governorate_id, updated_at: '' } as WilayatTimetable : null;
+  }
+}
+
+/** Saves a wilayat's timetable + calibration; screens of that wilayat pick it up automatically. */
+export async function saveWilayatTimetable(governorateId: string, wilayatId: string, schedule: PrayerSchedule, calibration: CalibrationProfile | null) {
+  const r = await rpc<{ version: number }>('mosque_admin_upsert_timetable', {
+    p_password: requirePw(), p_wilayat_id: wilayatId, p_governorate_id: governorateId, p_schedule: schedule, p_calibration: calibration,
+  });
+  if (status.binding && status.wilayatId === wilayatId) void syncNow(true);
+  return r;
+}
+
+export const deleteWilayatTimetable = (wilayatId: string) => rpc<boolean>('mosque_admin_delete_timetable', { p_password: requirePw(), p_wilayat_id: wilayatId });
+
 export const deleteMosque = (code: string) => rpc<boolean>('mosque_admin_delete_mosque', { p_password: requirePw(), p_code: code });
 
 /** Uploads this device's settings/adhkar to its bound mosque. */
@@ -277,7 +317,6 @@ export async function pushTimetable() {
 // ---------------------------------------------------------------- automatic upload of local edits (admin only)
 
 let lastSharedHash = '';
-let lastCalibHash = '';
 let timer: ReturnType<typeof setTimeout> | null = null;
 const pending = new Set<'mosque' | 'timetable'>();
 
@@ -307,22 +346,18 @@ export function startCloud() {
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void syncNow(); });
 
   lastSharedHash = JSON.stringify(sharedConfig(getState().config));
-  lastCalibHash = JSON.stringify(getState().config.calc.profile);
+  // Only mosque settings/adhkar are uploaded automatically. Wilayat timetables are edited and
+  // saved explicitly from «جدول المواقيت» (so a screen can never overwrite its wilayat's table).
   onLocalChange((k) => {
     if (!status.admin || !status.binding) return;
     if (k === 'config') {
-      const { config } = getState();
-      const h = JSON.stringify(sharedConfig(config));
-      const c = JSON.stringify(config.calc.profile);
+      const h = JSON.stringify(sharedConfig(getState().config));
       if (h !== lastSharedHash) { lastSharedHash = h; scheduleUpload('mosque'); }
-      if (c !== lastCalibHash) { lastCalibHash = c; scheduleUpload('timetable'); }
     } else if (k === 'adhkar') scheduleUpload('mosque');
-    else scheduleUpload('timetable');
   });
 }
 
 /** After a cloud download, the hashes reflect the downloaded data (so it is not echoed back). */
 export function resetUploadBaseline() {
   lastSharedHash = JSON.stringify(sharedConfig(getState().config));
-  lastCalibHash = JSON.stringify(getState().config.calc.profile);
 }
