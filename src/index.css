@@ -38,7 +38,12 @@ button { font-family: inherit; }
   mask-image: radial-gradient(ellipse 80% 75% at 50% 45%, transparent 30%, #000 85%); }
 .bg-lights { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 
-.quiet-screen { position: fixed; inset: 0; background: #000; cursor: none; z-index: 50; }
+.quiet-screen { position: fixed; inset: 0; background: #000; cursor: none; z-index: 50; display: flex; align-items: center; justify-content: center; }
+/* Only the time, soft white-grey, on the black screen */
+.quiet-clock { display: flex; align-items: baseline; gap: 2.4vmin; direction: rtl; color: #CFCFCF; font-family: 'Cairo', Tahoma, sans-serif;
+  font-weight: 700; font-size: 22vmin; line-height: 1; opacity: .85; transition: transform 2s ease; }
+.quiet-clock .num { direction: ltr; }
+.quiet-period { font-size: .26em; font-weight: 600; color: #9A9A9A; }
 
 .stage { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
 .num, .digit, .colon { font-variant-numeric: tabular-nums; }

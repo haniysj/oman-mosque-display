@@ -141,9 +141,11 @@ describe('6–7. countdown', () => {
 
 describe('8–11. quiet mode and adhkar', () => {
   const iq = at(SAT, '15:30');
-  it('8. black screen starts at iqamah, not before', () => {
+  it('8. black screen starts 5 seconds after the iqamah, not before', () => {
     expect(computeState(input(iq - 1)).phase).toBe('normal');
-    expect(computeState(input(iq)).phase).toBe('quiet');
+    expect(computeState(input(iq)).phase).toBe('normal');
+    expect(computeState(input(iq + 4_999)).phase).toBe('normal');
+    expect(computeState(input(iq + 5_000)).phase).toBe('quiet');
   });
   it('9. quiet lasts exactly five minutes, then adhkar', () => {
     expect(computeState(input(iq + 5 * MINUTE - 1)).phase).toBe('quiet');
@@ -183,10 +185,10 @@ describe('8–11. quiet mode and adhkar', () => {
     expect(computeState(input(fIq + 11 * MINUTE, { config: c3 })).phase).toBe('quiet');
   });
   it('emergency exit dismisses only the current sequence', () => {
-    const st = computeState(input(iq));
+    const st = computeState(input(iq + 10_000));
     const dismissed = new Set([st.sequence!.id]);
     expect(computeState(input(iq + MINUTE, { dismissed })).phase).toBe('normal');
-    expect(computeState(input(at(SAT, '17:50'), { dismissed })).phase).toBe('quiet'); // Maghrib still works
+    expect(computeState(input(at(SAT, '17:50', 30), { dismissed })).phase).toBe('quiet'); // Maghrib still works
   });
 });
 

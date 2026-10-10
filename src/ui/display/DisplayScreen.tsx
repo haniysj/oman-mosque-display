@@ -149,7 +149,17 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
 
   // Black screen after iqamah — nothing at all is rendered except a black surface.
   if (state.phase === 'quiet') {
-    return <div className="quiet-screen" onPointerDown={onPointer} aria-label="وقت الصلاة">{simBanner}</div>;
+    const qc = formatClock(state.parts.hour * 60 + state.parts.minute, 0, cfg.display.timeFormat, cfg.display.digits);
+    const m = state.parts.minute; // drift a little every minute (no burn-in on the screen)
+    const drift = { transform: `translate(${((m % 5) - 2) * 1.6}vmin, ${(((m * 3) % 5) - 2) * 1.6}vmin)` };
+    return (
+      <div className="quiet-screen" onPointerDown={onPointer} aria-label="وقت الصلاة">
+        <div className="quiet-clock" style={drift} aria-hidden>
+          <bdi className="num">{qc.text}</bdi>{qc.period && <span className="quiet-period">{qc.period}</span>}
+        </div>
+        {simBanner}
+      </div>
+    );
   }
 
   return (

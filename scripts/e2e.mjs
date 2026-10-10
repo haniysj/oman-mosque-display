@@ -88,10 +88,14 @@ await shot(browser, { name: 'countdown-61s-none', w: 1920, h: 1080, at: muscat(S
   check: async (p) => ok('no countdown at 61s', (await p.locator('.countdown').count()) === 0) });
 
 // Quiet black screen at iqamah + 1 min (TV) — and NOT on the phone
+// Black screen starts 5 s after the iqamah (Asr iqamah 15:34:00)
+await shot(browser, { name: 'quiet-delay', w: 1920, h: 1080, at: muscat(SAT, '15:34:02'), ua: TV_UA,
+  check: async (p) => ok('quiet: not yet black 2 s after iqamah', (await p.locator('.quiet-screen').count()) === 0) });
 await shot(browser, { name: 'quiet-tv', w: 1920, h: 1080, at: muscat(SAT, '15:35:00'), ua: TV_UA,
   check: async (p) => {
     ok('quiet: black screen', await p.locator('.quiet-screen').isVisible());
     ok('quiet: nothing else rendered', (await p.locator('.clock, .panel, .ctrl-bar').count()) === 0);
+    ok('quiet: only the time, white-grey', (await p.locator('.quiet-clock').textContent()).includes('3:35') && (await p.locator('.quiet-clock').evaluate((e) => getComputedStyle(e).color)) === 'rgb(207, 207, 207)');
   } });
 await shot(browser, { name: 'quiet-phone-exception', w: IPHONE.viewport.width, h: IPHONE.viewport.height, at: muscat(SAT, '15:35:00'), ua: IPHONE.userAgent, isMobile: true,
   check: async (p) => ok('phone: no black screen', (await p.locator('.quiet-screen').count()) === 0 && (await p.locator('.m-table').isVisible())) });

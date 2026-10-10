@@ -68,6 +68,8 @@ export interface EngineInput {
 }
 
 export const COUNTDOWN_WINDOW_MS = 60_000;
+/** The black screen starts this long after the iqamah (its end time is unchanged). */
+export const QUIET_DELAY_MS = 5_000;
 
 const NAMES: Record<PrayerKey, string> = { fajr: 'الفجر', dhuhr: 'الظهر', asr: 'العصر', maghrib: 'المغرب', isha: 'العشاء' };
 
@@ -180,7 +182,7 @@ export function computeState(input: EngineInput): DisplayState {
   let phase: Phase = 'normal';
   let suppressedByMobile = false;
   if (sequence) {
-    if (now < sequence.quietEnd) phase = sequence.quietActive ? 'quiet' : 'normal';
+    if (now < sequence.quietEnd) phase = sequence.quietActive && now >= sequence.iqamahAt + QUIET_DELAY_MS ? 'quiet' : 'normal';
     else phase = 'adhkar';
     // Phones never show the black screen or the adhkar screen (not configurable).
     if (phase !== 'normal' && input.isMobile) {
