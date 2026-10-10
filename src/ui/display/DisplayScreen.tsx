@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
-import type { AppConfig, PrayerKey } from '../../domain/types';
+import type { AppConfig, PrayerKey, PrayerSchedule } from '../../domain/types';
 import { PRAYER_KEYS } from '../../domain/types';
 import type { DisplayState } from '../../core/engine';
 import { formatClock, formatGregorianAr, WEEKDAYS_AR } from '../../core/time';
@@ -149,11 +149,18 @@ function useDates(state: DisplayState, cfg: AppConfig) {
   return { hijri, greg, weekday };
 }
 
-function SourceBadge({ cfg }: { cfg: AppConfig }) {
-  const meta = useApp((s) => s.schedule?.meta);
-  if (!meta) return null;
-  if (meta.source === 'demo') return <div className="source-badge source-badge--demo">DEMO DATA — بيانات تجريبية، ليست مواقيت رسمية</div>;
-  if (meta.source === 'calculated' && cfg.display.showSourceBadge) return <div className="source-badge">مواقيت محسوبة تقديرياً — غير رسمية</div>;
+/** Which badge today's data needs: demo always; uncalibrated calculation when enabled; official / calibrated none. */
+function todaySourceBadge(schedule: PrayerSchedule | null, today: string, cfg: AppConfig): 'demo' | 'calculated' | null {
+  if (!schedule) return null;
+  const src = schedule.days[today]?.source ?? schedule.meta.source;
+  if (src === 'demo' || schedule.meta.source === 'demo') return 'demo';
+  if (src === 'calculated' && cfg.display.showSourceBadge) return 'calculated';
+  return null;
+}
+
+function SourceBadge({ kind }: { kind: 'demo' | 'calculated' | null }) {
+  if (kind === 'demo') return <div className="source-badge source-badge--demo">DEMO DATA — بيانات تجريبية، ليست مواقيت رسمية</div>;
+  if (kind === 'calculated') return <div className="source-badge">مواقيت محسوبة تقديرياً — غير رسمية</div>;
   return null;
 }
 
@@ -175,8 +182,8 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin }: { state: DisplayState;
   const panelStyle = { '--panel-scale': d.panelScale / 100 } as CSSProperties;
   const schedule = useApp((s) => s.schedule);
   const cov = coverage(schedule, state.today);
-  const src = schedule?.meta.source;
-  const badgeShown = src === 'demo' || (src === 'calculated' && cfg.display.showSourceBadge);
+  const badge = todaySourceBadge(schedule, state.today, cfg);
+  const badgeShown = !!badge;
 
   const prayers = (
     <section className="panel" style={panelStyle} aria-label="الأذان">
@@ -295,7 +302,7 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin }: { state: DisplayState;
               <span className="foot-value">بعد <StableDigits text={remainingText(state, state.nextAdhan, d.digits)} /></span>
             </div>
             {badgeShown
-              ? <SourceBadge cfg={cfg} />
+              ? <SourceBadge kind={badge} />
               : plan?.isFriday && cfg.friday.announcement
                 ? <div className="foot-note">{cfg.friday.announcement}</div>
                 : <div className="foot-dot" aria-hidden />}
@@ -314,6 +321,7 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin }: { state: DisplayState;
 // ------------------------------------------------------------------------------ Phone / portrait
 
 function MobileView({ state, cfg, hasSchedule, controls }: { state: DisplayState; cfg: AppConfig; hasSchedule: boolean; controls: React.ReactNode }) {
+  const mSchedule = useApp((s) => s.schedule);
   const d = cfg.display;
   const { hijri, greg, weekday } = useDates(state, cfg);
   const clock = formatClock(state.parts.hour * 60 + state.parts.minute, state.parts.second, d.timeFormat, d.digits);
@@ -330,7 +338,7 @@ function MobileView({ state, cfg, hasSchedule, controls }: { state: DisplayState
         </div>
         {controls}
       </header>
-      <SourceBadge cfg={cfg} />
+      <SourceBadge kind={todaySourceBadge(mSchedule, state.today, cfg)} />
 
       <section className="m-clock" aria-live="polite">
         {cd ? (

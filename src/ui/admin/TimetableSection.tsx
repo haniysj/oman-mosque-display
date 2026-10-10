@@ -8,11 +8,13 @@ import { daysInMonth, GREGORIAN_MONTHS_AR, datesOfYear, muscatDateKey, WEEKDAYS_
 import { commitSchedule, restorePreviousSchedule, saveDayEdit, updateConfig, useApp } from '../../store/appStore';
 import { now } from '../../services/clock';
 import { Badge, Btn, Card, download, Field, Grid, Note, NumberInput, readFileText, Select, TextInput, TimeInput, useConfirm } from './kit';
+import { CalibrationCard, StatsLine } from './CalibrationCard';
+import { verifyProfile } from '../../core/calibrate';
 import { IconDownload, IconEdit, IconFileCsv, IconFileJson, IconPrint, IconRestore, IconUpload } from '../common/icons';
 
 const T_AR: Record<TimeKey, string> = { fajr: 'الفجر', sunrise: 'الشروق', dhuhr: 'الظهر', asr: 'العصر', maghrib: 'المغرب', isha: 'العشاء' };
-export const SOURCE_AR: Record<DataSourceKind, string> = { official: 'رسمي (وزارة الأوقاف)', admin: 'إدخال المشرف', calculated: 'محسوب — غير رسمي', demo: 'DEMO — تجريبي' };
-export const sourceTone = (s: DataSourceKind) => (s === 'official' ? 'teal' : s === 'admin' ? 'ink' : s === 'calculated' ? 'saffron' : 'rose') as 'teal' | 'ink' | 'saffron' | 'rose';
+export const SOURCE_AR: Record<DataSourceKind, string> = { official: 'رسمي (وزارة الأوقاف)', admin: 'إدخال المشرف', calibrated: 'محسوب ومعاير على جدول الوزارة', calculated: 'محسوب — غير رسمي', demo: 'DEMO — تجريبي' };
+export const sourceTone = (s: DataSourceKind) => (s === 'official' ? 'teal' : s === 'admin' || s === 'calibrated' ? 'ink' : s === 'calculated' ? 'saffron' : 'rose') as 'teal' | 'ink' | 'saffron' | 'rose';
 const fmtDateTime = (iso: string) => { try { return new Date(iso).toLocaleString('ar-OM-u-nu-latn', { timeZone: 'Asia/Muscat', dateStyle: 'medium', timeStyle: 'short' }); } catch { return iso; } };
 
 export function TimetableSection() {
@@ -58,6 +60,8 @@ export function TimetableSection() {
       <ActiveCard schedule={schedule} today={today} onRestore={previous ? () => ask(`استعادة الجدول السابق (${previous.meta.locationLabel} — ${previous.meta.dayCount} يوماً)؟\nسيصبح الجدول الحالي هو «السابق».`, () => void restorePreviousSchedule().then((ok) => setMsg(ok ? { tone: 'ok', text: 'تمت استعادة الجدول السابق.' } : { tone: 'error', text: 'لا يوجد جدول سابق.' }))) : undefined} />
 
       <ImportCard label={label} wilayatId={loc.wilayatId} schedule={schedule} onCommit={commit} isValidCurrent={isValidCurrent} />
+
+      <CalibrationCard />
 
       <CalcCard label={label} wilayatId={loc.wilayatId} lat={loc.customLat ?? wil?.lat ?? 23.6} lng={loc.customLng ?? wil?.lng ?? 58.4} onCommit={commit} />
 
@@ -113,6 +117,7 @@ const Row = ({ k, v }: { k: string; v: React.ReactNode }) => (
 const KIND_AR = { daily: 'يومي', monthly: 'شهري', annual: 'سنوي كامل', partial: 'فترة جزئية' };
 
 function ImportCard({ label, wilayatId, schedule, onCommit, isValidCurrent }: { label: string; wilayatId: string; schedule: PrayerSchedule | null; onCommit: (s: PrayerSchedule, what: string) => void; isValidCurrent: boolean }) {
+  const calProfile = useApp((s) => s.config.calc.profile);
   const [file, setFile] = useState<{ name: string; res: ImportResult } | null>(null);
   const [source, setSource] = useState<'official' | 'admin'>('official');
   const [note, setNote] = useState('');
@@ -179,6 +184,12 @@ function ImportCard({ label, wilayatId, schedule, onCommit, isValidCurrent }: { 
             </Note>
           )}
           {r.stats.months.length > 0 && <MonthStrip months={r.stats.months} />}
+          {calProfile && r.records.length > 0 && !r.errors.length && (
+            <div className="rounded-lg border border-line bg-white p-2">
+              <div className="mb-1 text-[12px] font-bold text-ink2">مقارنة الملف مع المعايرة الحالية ({calProfile.reference.label})</div>
+              <StatsLine s={verifyProfile(calProfile, r.records)} />
+            </div>
+          )}
           {r.warnings.length > 0 && (
             <Note tone="warn"><ul className="m-0 list-disc pr-5">{r.warnings.slice(0, 10).map((e, i) => <li key={i}>{e.date ? `${e.date}: ` : ''}{e.message}</li>)}</ul></Note>
           )}
@@ -218,7 +229,7 @@ function CalcCard({ label, wilayatId, lat, lng, onCommit }: { label: string; wil
   const [cLat, setLat] = useState(lat);
   const [cLng, setLng] = useState(lng);
   return (
-    <Card title="جدول محسوب أو تجريبي" actions={<Btn small kind="ghost" onClick={() => setOpen(!open)}>{open ? 'إخفاء' : 'عرض'}</Btn>}>
+    <Card title="جدول محسوب دون معايرة أو تجريبي" actions={<Btn small kind="ghost" onClick={() => setOpen(!open)}>{open ? 'إخفاء' : 'عرض'}</Btn>}>
       <Note tone="warn">المواقيت المحسوبة على الجهاز تقديرية وليست جدول الوزارة، وتُوسم دائماً «محسوبة — غير رسمية». استخدمها مؤقتاً فقط إلى أن يُستورد الجدول الرسمي.</Note>
       {open && (
         <div className="mt-3 flex flex-col gap-3">

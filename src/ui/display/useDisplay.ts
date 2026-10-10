@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { computeState, EventTracker, type DisplayState } from '../../core/engine';
 import { classifyDevice, isPhone, readDeviceEnv, type DeviceClass } from '../../core/device';
-import { getState, log, useApp } from '../../store/appStore';
+import { autoExtendIfNeeded, getState, log, useApp } from '../../store/appStore';
 import { now as clockNow, subscribe } from '../../services/clock';
 import { maybeApplyUpdate } from '../../services/pwa';
 import { MINUTE } from '../../core/time';
@@ -51,6 +51,9 @@ export function useDisplayState(): { state: DisplayState; device: DeviceClass; p
     const nextAt = Math.min(state.nextAdhan?.at ?? Infinity, state.nextIqamah?.at ?? Infinity);
     maybeApplyUpdate(state.phase === 'normal' && !state.countdown && nextAt - state.now > 3 * MINUTE);
   }, [state]);
+
+  // date rollover: keep the calibrated timetable filled ahead
+  useEffect(() => { void autoExtendIfNeeded(state.today); }, [state.today]);
 
   const prevPhase = useRef(state.phase);
   useEffect(() => {

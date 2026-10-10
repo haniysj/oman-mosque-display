@@ -15,6 +15,7 @@ export const TIME_KEYS: TimeKey[] = ['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib
 export type DataSourceKind =
   | 'official' // transcribed/imported by the administrator from the Ministry (MARA) timetable
   | 'admin' // entered or edited manually by the administrator
+  | 'calibrated' // calculated on this device with a profile fitted to official ministry days — NOT official
   | 'calculated' // astronomically calculated on this device — NOT official
   | 'demo'; // development sample — NOT official
 
@@ -164,6 +165,15 @@ export interface MosqueSettings {
   location: Location;
 }
 
+export interface CalcSettings {
+  /** Fitted to official ministry days (see core/calibrate.ts). Stored as plain data. */
+  profile: import('../core/calibrate').CalibrationProfile | null;
+  /** Keep the timetable filled ahead automatically with calibrated times (official days are never overwritten). */
+  autoExtend: boolean;
+  /** Generate for the mosque's own coordinates (if set) instead of the wilayat centre. */
+  useMosqueCoords: boolean;
+}
+
 export interface AppConfig {
   dataVersion: number;
   mosque: MosqueSettings;
@@ -173,6 +183,7 @@ export interface AppConfig {
   quiet: QuietSettings;
   adhkar: AdhkarSettings;
   display: DisplayPreferences;
+  calc: CalcSettings;
 }
 
 export interface ApplicationBackup {

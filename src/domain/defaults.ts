@@ -72,6 +72,7 @@ export function defaultConfig(): AppConfig {
       clockOffsetMs: 0,
       autoClockCorrection: false,
     },
+    calc: { profile: null, autoExtend: true, useMosqueCoords: false },
   };
 }
 

@@ -9,7 +9,9 @@ import { defaultAdhkar, defaultConfig, mergeConfig } from '../domain/defaults';
 import * as store from './db';
 import { editDay } from '../core/timetable';
 import type { ApplicationBackup } from '../domain/types';
-import { setClockOffset } from '../services/clock';
+import { now, setClockOffset } from '../services/clock';
+import { extendAhead, needsExtension } from '../core/generate';
+import { muscatDateKey } from '../core/time';
 
 export interface AppState {
   loaded: boolean;
@@ -45,6 +47,7 @@ export async function loadApp() {
     setClockOffset(config.display.clockOffsetMs);
     publish({ loaded: true, config, schedule: p.schedule, previousSchedule: p.previousSchedule, adhkar });
     log('info', `تشغيل التطبيق — جدول: ${p.schedule ? p.schedule.meta.locationLabel + ' v' + p.schedule.meta.version : 'لا يوجد'}`);
+    void autoExtendIfNeeded(muscatDateKey(now()));
   } catch (e) {
     // IndexedDB unavailable (private mode / blocked): keep running in memory with defaults
     publish({ loaded: true, loadError: (e as Error).message });
@@ -99,4 +102,30 @@ export async function restoreBackup(b: ApplicationBackup) {
     ...(b.schedule ? { schedule: b.schedule, previousSchedule: prev ?? state.previousSchedule } : {}),
   });
   log('warn', `استعادة نسخة احتياطية (${b.createdAt})`);
+}
+
+let extending = false;
+/** Keeps the timetable filled ahead with calibrated days (never overwrites existing days). */
+export async function autoExtendIfNeeded(today: string): Promise<number> {
+  const { config, schedule } = state;
+  if (extending || !config.calc.autoExtend || !config.calc.profile) return 0;
+  if (!needsExtension(schedule, today)) return 0;
+  extending = true;
+  try {
+    const { schedule: next, added } = extendAhead(schedule, today, config, new Date().toISOString());
+    if (!added) return 0;
+    await store.saveSchedule(next);
+    publish({ schedule: next });
+    log('info', `تمديد تلقائي للجدول: أُضيف ${added} يوماً محسوباً ومعايراً`);
+    return added;
+  } finally {
+    extending = false;
+  }
+}
+
+/** Saves a schedule produced by filling missing days (keeps the "previous" slot untouched). */
+export async function saveFilledSchedule(next: PrayerSchedule, what: string) {
+  await store.saveSchedule(next);
+  publish({ schedule: next });
+  log('info', what);
 }
