@@ -225,7 +225,7 @@ export function QuietSection({ onPreview }: { onPreview: (slot: PrayerKey) => vo
               </label>
             ))}
           </div>
-          <Toggle checked={q.mobileException} onChange={(v) => set((c) => { c.quiet.mobileException = v; })} label="استثناء الهواتف" hint="على الهاتف لا تُعرض الشاشة السوداء ولا الأذكار؛ تبقى الواجهة العادية والعد التنازلي. نوع الجهاز يُحدَّد تلقائياً ويمكن تغييره من «العرض»." />
+          <Note>الهواتف لا تعرض الشاشة السوداء ولا الأذكار أبداً؛ تبقى المواقيت والعد التنازلي ظاهرة. نوع الجهاز يُحدَّد تلقائياً ويمكن تغييره من «العرض».</Note>
           <Toggle checked={q.emergencyExit} onChange={(v) => set((c) => { c.quiet.emergencyExit = v; })} label="خروج طارئ" hint="الضغط على زر OK / Enter بجهاز التحكم 3 مرات خلال ثانيتين (أو 3 لمسات) ينهي الشاشة السوداء والأذكار الحالية فقط." />
         </div>
       </Card>

@@ -181,7 +181,8 @@ export function computeState(input: EngineInput): DisplayState {
   if (sequence) {
     if (now < sequence.quietEnd) phase = sequence.quietActive ? 'quiet' : 'normal';
     else phase = 'adhkar';
-    if (phase !== 'normal' && input.isMobile && cfg.quiet.mobileException) {
+    // Phones never show the black screen or the adhkar screen (not configurable).
+    if (phase !== 'normal' && input.isMobile) {
       suppressedByMobile = true;
       phase = 'normal';
     }

@@ -13,6 +13,8 @@ import { LightLayer, PatternLayer } from './Background';
 import { eventPhrase, FitText, Pill, remainingText, StableDigits, TimeText } from './parts';
 import { useDisplayState } from './useDisplay';
 import { AdhkarScreen } from './AdhkarScreen';
+import { MosquePicker } from './MosquePicker';
+import { useCloud } from '../../services/cloud';
 
 const PRAYER_NAMES: Record<PrayerKey, string> = { fajr: 'الفجر', dhuhr: 'الظهر', asr: 'العصر', maghrib: 'المغرب', isha: 'العشاء' };
 const STAGE_W = 1920, STAGE_H = 1080;
@@ -328,6 +330,8 @@ function MobileView({ state, cfg, hasSchedule, controls }: { state: DisplayState
   const plan = state.plan;
   const cd = state.countdown;
   const inSequence = state.suppressedByMobile && state.sequence;
+  const cloudBinding = useCloud().binding;
+  const [picker, setPicker] = useState(false);
 
   return (
     <div className="m-root">
@@ -335,6 +339,11 @@ function MobileView({ state, cfg, hasSchedule, controls }: { state: DisplayState
         <div className="m-names">
           <FitText text={cfg.mosque.nameAr || 'اسم المسجد'} base={30} min={20} lines={2} className="m-name" />
           {d.showEnglishName && cfg.mosque.nameEn && <div className="m-name-en" dir="ltr">{cfg.mosque.nameEn}</div>}
+          <button className="m-pick" onClick={() => setPicker(true)}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" /></svg>
+            {cloudBinding ? 'تغيير المسجد' : 'اختيار المسجد'}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="m6 9 6 6 6-6" /></svg>
+          </button>
         </div>
         {controls}
       </header>
@@ -366,25 +375,25 @@ function MobileView({ state, cfg, hasSchedule, controls }: { state: DisplayState
 
       {plan ? (
         <table className="m-table">
-          <thead><tr><th scope="col">الصلاة</th><th scope="col">الأذان</th><th scope="col">الإقامة</th></tr></thead>
+          <thead><tr><th scope="col">الأذان</th><th scope="col" className="m-col-name">الصلاة</th><th scope="col">الإقامة</th></tr></thead>
           <tbody>
             {PRAYER_KEYS.flatMap((k) => {
               const row = (
                 <tr key={k} className={`${state.nextPrayerSlot === k ? 'is-next' : ''} ${state.currentIqamahSlot === k ? 'is-current' : ''}`}>
-                  <th scope="row">
-                    {prayerRowLabel(k, state, cfg)}
+                  <td><TimeText ms={plan.adhan[k]} cfg={cfg} /></td>
+                  <th scope="row" className="m-col-name">
+                    <span className="m-pname">{prayerRowLabel(k, state, cfg)}</span>
                     {state.nextPrayerSlot === k && <span className="m-tag">القادمة</span>}
                     {state.currentIqamahSlot === k && <span className="m-tag m-tag--now">الآن</span>}
                   </th>
-                  <td><TimeText ms={plan.adhan[k]} cfg={cfg} /></td>
                   <td><TimeText ms={plan.iqamah[k].at} cfg={cfg} /></td>
                 </tr>
               );
               if (k !== 'fajr') return [row];
               return [row, (
                 <tr key="sunrise" className="is-sunrise">
-                  <th scope="row">الشروق / الضحى</th>
                   <td><TimeText ms={plan.sunrise} cfg={cfg} /></td>
+                  <th scope="row" className="m-col-name"><span className="m-pname">الشروق / الضحى</span></th>
                   <td><TimeText ms={plan.duha} cfg={cfg} /></td>
                 </tr>
               )];
@@ -392,7 +401,7 @@ function MobileView({ state, cfg, hasSchedule, controls }: { state: DisplayState
           </tbody>
         </table>
       ) : (
-        <div className="m-empty">{hasSchedule ? 'جدول المواقيت لا يغطي تاريخ اليوم' : 'لم يُضبط جدول المواقيت بعد — افتح الإعدادات'}</div>
+        <div className="m-empty">{hasSchedule ? 'جدول المواقيت لا يغطي تاريخ اليوم' : 'اختر المسجد لعرض مواقيته'}</div>
       )}
 
       {plan && (state.nextAdhan || state.nextIqamah) && (
@@ -402,6 +411,7 @@ function MobileView({ state, cfg, hasSchedule, controls }: { state: DisplayState
         </div>
       )}
       {plan?.isFriday && cfg.friday.announcement && <div className="m-announce">{cfg.friday.announcement}</div>}
+      {picker && <MosquePicker current={cloudBinding?.code ?? null} onClose={() => setPicker(false)} />}
     </div>
   );
 }
