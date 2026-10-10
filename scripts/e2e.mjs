@@ -111,7 +111,7 @@ await shot(browser, { name: 'friday', w: 1920, h: 1080, at: muscat(FRI, '11:30:0
   mutate: (b) => { b.config.friday.announcement = 'خطبة الجمعة: فضل صلة الرحم'; return b; },
   check: async (p) => {
     ok('friday label', (await p.locator('.panel').first().textContent()).includes('الجمعة'));
-    ok('friday iqamah row', (await p.locator('.panel').nth(1).textContent()).includes('إقامة الجمعة'));
+    ok('friday iqamah row', (await p.locator('.panel').nth(1).locator('.row-name').allTextContents()).some((t) => t.includes('الجمعة')));
   } });
 
 // Arabic digits + navy theme
@@ -138,6 +138,24 @@ for (const tab of ['timetable', 'iqamah', 'friday', 'quiet', 'diagnostics']) {
     ok(`admin-${tab}-${w}: no errors / overflow`, !errs.length && !of, errs.join('|'));
     await ctx.close();
   }
+}
+
+// Labels: iqamah rows show only the prayer name; footer shows «أذان صلاة …» and «إقامة صلاة …»
+await shot(browser, { name: 'labels', w: 1920, h: 1080, at: muscat(SAT, '15:20:07'), ua: TV_UA,
+  check: async (p) => {
+    const names = await p.locator('.panel').nth(1).locator('.row-name').allTextContents();
+    ok('iqamah rows without «إقامة»', names.length === 6 && names.every((t) => !t.includes('إقامة')) && names[0].includes('الفجر'), names.join(' | '));
+    const foot = await p.locator('.tv-foot').textContent();
+    ok('footer: «أذان صلاة …» and «إقامة صلاة …»', foot.includes('أذان صلاة المغرب') && foot.includes('إقامة صلاة العصر'), foot);
+  } });
+
+// Screen shapes: the layout fills landscape screens of any aspect and large portrait screens
+for (const [w, h] of [[1440, 900], [1280, 1024], [2560, 1080], [1080, 1920], [820, 1180]]) {
+  await shot(browser, { name: `shape-${w}x${h}`, w, h, at: muscat(SAT, '15:20:07'), ua: TV_UA,
+    check: async (p) => {
+      const r = await p.locator('.stage').first().boundingBox();
+      ok(`${w}x${h}: stage fills the screen`, !!r && Math.abs(r.width - w) <= 3 && Math.abs(r.height - h) <= 3 + (w / h < 4 / 3 && w > h ? h : 0), r ? `${Math.round(r.width)}x${Math.round(r.height)}` : 'no stage');
+    } });
 }
 
 // Offline: install SW, go offline, reload → still renders from cache + IndexedDB

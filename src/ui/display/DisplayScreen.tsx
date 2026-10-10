@@ -19,6 +19,17 @@ import { useCloud } from '../../services/cloud';
 
 const PRAYER_NAMES: Record<PrayerKey, string> = { fajr: 'الفجر', dhuhr: 'الظهر', asr: 'العصر', maghrib: 'المغرب', isha: 'العشاء' };
 const STAGE_W = 1920, STAGE_H = 1080;
+/** Large portrait screens (tablet, vertical TV): the phone layout scaled up so it fills the height. */
+function portraitStage(vw: number, vh: number): { w: number; h: number } {
+  const w = Math.min(680, Math.max(360, Math.round(900 * vw / vh)));
+  return { w, h: Math.round(w * vh / vw) };
+}
+
+/** Stage size that fills the screen: 1920×1080 design, widened or heightened to the screen's aspect. */
+function stageFor(vw: number, vh: number): { w: number; h: number } {
+  const a = Math.min(3, Math.max(4 / 3, vw / Math.max(1, vh)));
+  return a >= STAGE_W / STAGE_H ? { w: Math.round(STAGE_H * a), h: STAGE_H } : { w: STAGE_W, h: Math.round(STAGE_W / a) };
+}
 
 function useViewport() {
   const [vp, setVp] = useState({ w: window.innerWidth, h: window.innerHeight });
@@ -147,28 +158,41 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
       <PatternLayer theme={cfg.display.theme} highContrast={cfg.display.highContrast} />
       <LightLayer mode={cfg.display.background} intensity={cfg.display.highContrast ? Math.min(30, cfg.display.animationIntensity) : cfg.display.animationIntensity} theme={cfg.display.highContrast ? 'contrast' : cfg.display.theme} />
       {simBanner}
-      {portrait
-        ? <MobileView state={state} cfg={cfg} hasSchedule={!!schedule} controls={controlBar} onNameTap={onNameTap} />
-        : (
-          <Stage vpW={vp.w} vpH={vp.h}>
-            {state.phase === 'adhkar'
-              ? <AdhkarScreen state={state} cfg={cfg} />
-              : <TvView state={state} cfg={cfg} hasSchedule={!!schedule} onOpenAdmin={onOpenAdmin} onNameTap={onNameTap} />}
-            {controlBar}
-          </Stage>
-        )}
+      {portrait && state.phase === 'adhkar' && !phone ? (
+        // large portrait screen (vertical TV): adhkar on a tall stage
+        <Stage vpW={vp.w} vpH={vp.h} w={1080} h={Math.round(1080 * vp.h / vp.w)} className="is-tall">
+          <AdhkarScreen state={state} cfg={cfg} />
+          {controlBar}
+        </Stage>
+      ) : portrait ? (
+        vp.w < 760
+          ? <MobileView state={state} cfg={cfg} hasSchedule={!!schedule} controls={controlBar} onNameTap={onNameTap} fs={fs} />
+          : (
+            // tablet / vertical TV: the phone layout, scaled to fill the screen
+            <Stage vpW={vp.w} vpH={vp.h} {...portraitStage(vp.w, vp.h)} className="is-portrait-stage">
+              <MobileView state={state} cfg={cfg} hasSchedule={!!schedule} controls={controlBar} onNameTap={onNameTap} fs={fs} />
+            </Stage>
+          )
+      ) : (
+        <Stage vpW={vp.w} vpH={vp.h} {...stageFor(vp.w, vp.h)}>
+          {state.phase === 'adhkar'
+            ? <AdhkarScreen state={state} cfg={cfg} />
+            : <TvView state={state} cfg={cfg} hasSchedule={!!schedule} onOpenAdmin={onOpenAdmin} onNameTap={onNameTap} />}
+          {controlBar}
+        </Stage>
+      )}
       {picker && <MosquePicker current={cloudCode} onClose={() => setPicker(false)} />}
     </div>
   );
 }
 
-function Stage({ vpW, vpH, children }: { vpW: number; vpH: number; children: React.ReactNode }) {
-  const scale = Math.min(vpW / STAGE_W, vpH / STAGE_H);
+function Stage({ vpW, vpH, w, h, className = '', children }: { vpW: number; vpH: number; w: number; h: number; className?: string; children: React.ReactNode }) {
+  const scale = Math.min(vpW / w, vpH / h);
   const style: CSSProperties = {
-    width: STAGE_W, height: STAGE_H,
-    transform: `translate(${(vpW - STAGE_W * scale) / 2}px, ${(vpH - STAGE_H * scale) / 2}px) scale(${scale})`,
+    width: w, height: h,
+    transform: `translate(${(vpW - w * scale) / 2}px, ${(vpH - h * scale) / 2}px) scale(${scale})`,
   };
-  return <div className="stage" style={style}>{children}</div>;
+  return <div className={`stage ${className}`} style={style}>{children}</div>;
 }
 
 // ------------------------------------------------------------------------------ helpers
@@ -196,8 +220,8 @@ function SourceBadge({ kind }: { kind: 'demo' | 'calculated' | null }) {
 }
 
 function iqamahRowLabel(slot: PrayerKey, state: DisplayState, cfg: AppConfig) {
-  if (slot === 'dhuhr' && state.plan?.isFriday) return cfg.friday.rowMode === 'replace' ? `إقامة ${cfg.friday.label || 'الجمعة'}` : `إقامة الظهر / ${cfg.friday.label || 'الجمعة'}`;
-  return `إقامة ${PRAYER_NAMES[slot]}`;
+  if (slot === 'dhuhr' && state.plan?.isFriday) return cfg.friday.rowMode === 'replace' ? cfg.friday.label || 'الجمعة' : `الظهر / ${cfg.friday.label || 'الجمعة'}`;
+  return PRAYER_NAMES[slot];
 }
 function prayerRowLabel(slot: PrayerKey, state: DisplayState, cfg: AppConfig) {
   return slot === 'dhuhr' && state.plan?.isFriday ? cfg.friday.label || 'الجمعة' : PRAYER_NAMES[slot];
@@ -351,7 +375,7 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin, onNameTap }: { state: Di
 
 // ------------------------------------------------------------------------------ Phone / portrait
 
-function MobileView({ state, cfg, hasSchedule, controls, onNameTap }: { state: DisplayState; cfg: AppConfig; hasSchedule: boolean; controls: React.ReactNode; onNameTap: () => void }) {
+function MobileView({ state, cfg, hasSchedule, controls, onNameTap, fs }: { state: DisplayState; cfg: AppConfig; hasSchedule: boolean; controls: React.ReactNode; onNameTap: () => void; fs: boolean }) {
   const mSchedule = useApp((s) => s.schedule);
   const d = cfg.display;
   const { hijri, greg, weekday } = useDates(state, cfg);
@@ -370,7 +394,7 @@ function MobileView({ state, cfg, hasSchedule, controls, onNameTap }: { state: D
           {d.showEnglishName && cfg.mosque.nameEn && <div className="m-name-en" dir="ltr">{cfg.mosque.nameEn}</div>}
         </div>
         <div className="m-actions">
-          <ReminderBell />
+          {!fs && <ReminderBell />}
           {controls}
         </div>
       </header>

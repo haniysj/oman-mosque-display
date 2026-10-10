@@ -78,7 +78,7 @@ button { font-family: inherit; }
 .panel-empty { font-size: 34px; color: var(--muted-d); text-align: center; margin: auto; }
 
 .tv-center { position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; overflow: hidden; }
-.mihrab { position: absolute; inset: 0 8px 0; width: calc(100% - 16px); height: 100%; fill: none; }
+.mihrab { position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); width: calc(100% - 16px); max-width: 760px; height: 100%; fill: none; }
 .mihrab path { stroke: var(--gold); stroke-width: 2.5; opacity: .75; vector-effect: non-scaling-stroke; }
 .mihrab path.inner { stroke-width: 1; opacity: .38; }
 .theme-minimal .mihrab path { opacity: .35; }
@@ -266,3 +266,9 @@ button { font-family: inherit; }
   background: #FBF7EF; color: #102A43; border-radius: 12px; padding: 8px 10px; box-shadow: 0 6px 20px rgba(0,0,0,.3); }
 .m-name-tap, .name-tap { cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
 .display-root { touch-action: manipulation; }
+.stage.is-tall .adhkar { padding: 0 64px; }
+
+/* Large portrait screens (tablet / vertical TV): the phone layout fills the height */
+.is-portrait-stage .m-root { overflow-y: auto; }
+.is-portrait-stage .m-table { flex: 1 1 auto; }
+.is-portrait-stage .m-clock { padding: 22px 0 18px; }

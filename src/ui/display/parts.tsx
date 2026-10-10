@@ -46,7 +46,7 @@ export function StableDigits({ text, className }: { text: string; className?: st
 
 export function eventPhrase(e: ScheduledEvent): string {
   return e.kind === 'adhan'
-    ? e.label === 'الجمعة' ? 'صلاة الجمعة' : `أذان ${e.label}`
+    ? e.label === 'الجمعة' ? 'صلاة الجمعة' : `أذان صلاة ${e.label}`
     : `إقامة صلاة ${e.label}`;
 }
 
