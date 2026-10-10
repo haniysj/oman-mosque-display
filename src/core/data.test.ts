@@ -19,6 +19,22 @@ describe('16. import validation', () => {
     expect(r.records[0]).toMatchObject({ date: '2026-10-10', fajr: '04:30', isha: '19:00' });
     expect(r.stats.kind).toBe('daily');
   });
+  it('reads Excel-saved dates: DD-MM-YY, US M/D/YYYY and serial numbers, with 12-hour times', () => {
+    const ministry = (dates: string[]) => parseCsvTimetable(['تاريخ,الفجر,الشروق,الظهر,العصر,المغرب,العشاء', ...dates.map((d) => `${d},04:43,05:58,12:02,03:26,06:00,07:10`)].join('\n'));
+    const a = ministry(['01-10-26', '02-10-26', '03-10-26', '13-10-26']);
+    expect(a.errors).toEqual([]);
+    expect(a.records.map((r) => r.date)).toEqual(['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-13']);
+    expect(a.records[0]).toMatchObject({ asr: '15:26', maghrib: '18:00', isha: '19:10' });
+    const b = ministry(['10/1/2026', '10/2/2026', '10/3/2026']);
+    expect(b.records.map((r) => r.date)).toEqual(['2026-10-01', '2026-10-02', '2026-10-03']);
+    expect(b.warnings.some((w) => w.message.includes('شهر/يوم'))).toBe(true);
+    const c = ministry(['1/10/2026', '2/10/2026', '3/10/2026']);
+    expect(c.records.map((r) => r.date)).toEqual(['2026-10-01', '2026-10-02', '2026-10-03']);
+    const d = ministry(['46296', '46297']);
+    expect(d.records.map((r) => r.date)).toEqual(['2026-10-01', '2026-10-02']);
+    const e = ministry(['01/10/2026 00:00', '02/10/2026 00:00']);
+    expect(e.records.map((r) => r.date)).toEqual(['2026-10-01', '2026-10-02']);
+  });
   it('resolves 12-hour times without AM/PM and reports the conversion', () => {
     const r = parseCsvTimetable(`${HEAD}\n2026-10-10,4:30,5:45,11:50,3:10,5:40,7:00\n2026-10-11,4:31,5:46,11:50,3:09,5:39,6:59`);
     expect(r.errors).toEqual([]);

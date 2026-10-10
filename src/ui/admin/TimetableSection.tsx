@@ -7,7 +7,7 @@ import { calculateYear, DEFAULT_CALC, demoSchedule } from '../../core/calc';
 import { daysInMonth, GREGORIAN_MONTHS_AR, datesOfYear, muscatDateKey, WEEKDAYS_AR, weekdayOf } from '../../core/time';
 import { commitSchedule, restorePreviousSchedule, saveDayEdit, updateConfig, useApp } from '../../store/appStore';
 import { now } from '../../services/clock';
-import { Badge, Btn, Card, download, Field, Grid, Note, NumberInput, readFileText, Select, TextInput, TimeInput, useConfirm } from './kit';
+import { Badge, Btn, Card, download, Field, Grid, isSpreadsheet, Note, NumberInput, readFileText, readSpreadsheetAsCsv, Select, TextInput, TimeInput, useConfirm } from './kit';
 import { CalibrationCard, StatsLine } from './CalibrationCard';
 import { verifyProfile } from '../../core/calibrate';
 import { IconDownload, IconEdit, IconFileCsv, IconFileJson, IconPrint, IconRestore, IconUpload } from '../common/icons';
@@ -126,12 +126,17 @@ function ImportCard({ label, wilayatId, schedule, onCommit, isValidCurrent }: { 
 
   const onFile = async (f: File | undefined) => {
     if (!f) return;
-    const text = await readFileText(f);
-    const res = parseTimetableFile(f.name, text);
+    let res: ImportResult;
+    try {
+      res = isSpreadsheet(f.name) ? parseTimetableFile('sheet.csv', await readSpreadsheetAsCsv(f)) : parseTimetableFile(f.name, await readFileText(f));
+    } catch (e) {
+      res = parseTimetableFile('x.csv', '');
+      res.errors = [{ row: null, message: `تعذّرت قراءة الملف: ${(e as Error).message}` }];
+    }
     setFile({ name: f.name, res });
     const y = res.stats.years.join('/') || year;
     setNote(`تقويم وزارة الأوقاف والشؤون الدينية ${y} — ${label}`);
-    setMode(res.stats.kind === 'annual' || !schedule || schedule.meta.source === 'demo' || schedule.meta.source === 'calculated' ? 'replace' : 'merge');
+    setMode(res.stats.kind === 'annual' || !schedule || schedule.meta.source === 'demo' || schedule.meta.source === 'calculated' || schedule.meta.wilayatId !== wilayatId ? 'replace' : 'merge');
   };
 
   const r = file?.res;
@@ -157,8 +162,8 @@ function ImportCard({ label, wilayatId, schedule, onCommit, isValidCurrent }: { 
       </Note>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-xl border border-ink bg-ink px-4 text-[14px] font-bold text-white hover:bg-ink2">
-          <IconFileCsv /><IconFileJson />اختيار ملف CSV أو JSON
-          <input type="file" accept=".csv,.json,text/csv,application/json" className="sr-only" onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ''; }} />
+          <IconFileCsv /><IconFileJson />اختيار ملف Excel أو CSV أو JSON
+          <input type="file" accept=".csv,.json,.xlsx,.xls,text/csv,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" className="sr-only" onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ''; }} />
         </label>
         <a className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white px-3 text-[13px] font-bold text-ink no-underline hover:border-ink2" href="/data/template.csv" download><IconFileCsv size={16} />قالب CSV</a>
         <a className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white px-3 text-[13px] font-bold text-ink no-underline hover:border-ink2" href="/data/template.json" download><IconFileJson size={16} />قالب JSON</a>

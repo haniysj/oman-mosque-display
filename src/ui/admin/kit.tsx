@@ -133,9 +133,28 @@ export function download(name: string, content: string | Blob, type = 'applicati
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-export function readFileText(file: File): Promise<string> {
-  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error); r.readAsText(file, 'utf-8'); });
+function readBuffer(file: File): Promise<ArrayBuffer> {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as ArrayBuffer); r.onerror = () => rej(r.error); r.readAsArrayBuffer(file); });
 }
+
+/** UTF-8 (with or without BOM), UTF-16 (Excel "Unicode text"), or Windows-1256 (Excel "CSV" on Arabic Windows). */
+export async function readFileText(file: File): Promise<string> {
+  const buf = new Uint8Array(await readBuffer(file));
+  if (buf[0] === 0xff && buf[1] === 0xfe) return new TextDecoder('utf-16le').decode(buf);
+  if (buf[0] === 0xfe && buf[1] === 0xff) return new TextDecoder('utf-16be').decode(buf);
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch { /* not UTF-8 */ }
+  try { return new TextDecoder('windows-1256').decode(buf); } catch { return new TextDecoder('utf-8').decode(buf); }
+}
+
+/** Excel workbooks (.xlsx / .xls): the first sheet is converted to CSV text, dates as YYYY-MM-DD. */
+export async function readSpreadsheetAsCsv(file: File): Promise<string> {
+  const XLSX = await import('xlsx');
+  const wb = XLSX.read(new Uint8Array(await readBuffer(file)), { type: 'array', cellDates: true });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  return XLSX.utils.sheet_to_csv(ws, { dateNF: 'yyyy-mm-dd', blankrows: false, rawNumbers: false } as Parameters<typeof XLSX.utils.sheet_to_csv>[1]);
+}
+
+export const isSpreadsheet = (name: string) => /\.(xlsx|xlsm|xls)$/i.test(name);
 
 /** Two-step confirm (avoids window.confirm, which some TV browsers block). */
 export function useConfirm() {

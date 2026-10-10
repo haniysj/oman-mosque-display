@@ -86,19 +86,44 @@ export function parseCsvRows(text: string): string[][] {
   return rows.filter((r) => r.some((x) => x.trim() !== ''));
 }
 
-/** Accepts YYYY-MM-DD, YYYY/MM/DD, DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY (Arabic digits allowed). */
-export function normalizeDate(raw: string): string | null {
-  const s = normalizeDigits(String(raw ?? '')).trim();
+export type DateOrder = 'dmy' | 'mdy';
+
+/**
+ * Accepts YYYY-MM-DD, YYYY/MM/DD, DD/MM/YYYY, DD-MM-YY (2-digit year → 20YY), Excel date
+ * serial numbers (e.g. 46296), Arabic-Indic digits, and an optional trailing time.
+ * Day-first is the default (Oman); `order = 'mdy'` handles files saved by Excel in US format.
+ */
+export function normalizeDate(raw: string, order: DateOrder = 'dmy'): string | null {
+  let s = normalizeDigits(String(raw ?? '')).trim().replace(/\s+\d{1,2}:\d{2}(:\d{2})?(\s*[ap]\.?m\.?)?$/i, '');
   let y: number, m: number, d: number;
+  if (/^\d{5}(\.\d+)?$/.test(s)) {
+    const serial = Math.floor(+s);
+    if (serial < 30000 || serial > 80000) return null;
+    const dt = new Date(Date.UTC(1899, 11, 30) + serial * 86_400_000);
+    s = `${dt.getUTCFullYear()}-${dt.getUTCMonth() + 1}-${dt.getUTCDate()}`;
+  }
   let mt = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(s);
   if (mt) { y = +mt[1]; m = +mt[2]; d = +mt[3]; }
   else {
-    mt = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/.exec(s);
+    mt = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})$/.exec(s);
     if (!mt) return null;
-    d = +mt[1]; m = +mt[2]; y = +mt[3];
+    const a = +mt[1], b = +mt[2];
+    [d, m] = order === 'mdy' ? [b, a] : [a, b];
+    y = mt[3].length === 2 ? 2000 + +mt[3] : +mt[3];
   }
   const key = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
   return parseDateKey(key) ? key : null;
+}
+
+/** Decides day-first vs month-first for a whole file: the order that gives valid, consecutive dates wins. */
+export function detectDateOrder(raws: string[]): DateOrder {
+  const score = (o: DateOrder) => {
+    const keys = raws.map((r) => normalizeDate(r, o));
+    let sc = keys.filter(Boolean).length * 2;
+    for (let i = 1; i < keys.length; i++) if (keys[i] && keys[i - 1] && addDays(keys[i - 1]!, 1) === keys[i]) sc++;
+    return sc;
+  };
+  return score('mdy') > score('dmy') ? 'mdy' : 'dmy';
 }
 
 /** Expected 24-hour ranges, used only to resolve 12-hour times written without AM/PM. */
@@ -188,11 +213,13 @@ export function isBlankCell(v: unknown): boolean {
 function validateRaw(rawRecords: RawRecord[], result: ImportResult, strict = false): void {
   const byDate = new Map<string, DailyPrayerTimes>();
   const fileYears = new Set<number>();
+  const order = detectDateOrder(rawRecords.map((r) => String(r.date ?? '')).filter((x) => x.trim()));
+  if (order === 'mdy') result.warnings.push({ row: null, message: 'التواريخ في الملف بصيغة شهر/يوم/سنة (إعداد Excel الأمريكي) — تمت قراءتها على هذا الأساس' });
   rawRecords.forEach((raw, idx) => {
     const row = raw.__row ?? idx + 1;
     const filled = TIME_KEYS.filter((k) => !isBlankCell(raw[k]));
     if (!strict && filled.length === 0 && isBlankCell(raw.date)) return; // fully blank line
-    const date = normalizeDate(String(raw.date ?? ''));
+    const date = normalizeDate(String(raw.date ?? ''), order);
     if (!date) { result.errors.push({ row, message: `تاريخ غير صالح: «${String(raw.date ?? '')}»` }); return; }
     fileYears.add(+date.slice(0, 4));
     if (!strict && filled.length === 0) { result.stats.skippedEmpty++; return; }
