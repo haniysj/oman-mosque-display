@@ -216,6 +216,29 @@ export async function createMosque(code: string, nameAr: string, governorateId: 
   });
 }
 
+/** Reads one mosque's shared settings (for the edit dialog). */
+export async function getMosqueConfig(code: string): Promise<AppConfig> {
+  const b = await rpc<Bundle | null>('mosque_bundle', { p_code: code });
+  if (!b) throw new Error(`المسجد «${code}» غير موجود في السحابة`);
+  const c = mergeConfig(b.mosque.config ?? {});
+  c.mosque.nameAr = b.mosque.name_ar;
+  c.mosque.location = { ...c.mosque.location, governorateId: b.mosque.governorate_id, wilayatId: b.mosque.wilayat_id };
+  return c;
+}
+
+/** Updates a mosque's name / wilayat / logo / coordinates (adhkar untouched). The mosque is linked
+ *  to its wilayat's timetable automatically, so changing the wilayat switches the timetable too. */
+export async function updateMosque(code: string, cfg: AppConfig) {
+  const loc = cfg.mosque.location;
+  if (!findWilayat(loc.governorateId, loc.wilayatId)) throw new Error('حدد المحافظة والولاية');
+  const r = await rpc<{ version: number }>('mosque_admin_upsert_mosque', {
+    p_password: requirePw(), p_code: code, p_name_ar: cfg.mosque.nameAr.trim(), p_governorate_id: loc.governorateId, p_wilayat_id: loc.wilayatId,
+    p_config: sharedConfig(cfg), p_adhkar: null,
+  });
+  if (status.binding?.code === code) await syncNow(true);
+  return r;
+}
+
 export const deleteMosque = (code: string) => rpc<boolean>('mosque_admin_delete_mosque', { p_password: requirePw(), p_code: code });
 
 /** Uploads this device's settings/adhkar to its bound mosque. */

@@ -11,8 +11,8 @@ import { clearLogs, readLogs, requestPersistentStorage } from '../../store/db';
 import { measureServerOffset, now, realNow, simulationInfo, stopSimulation } from '../../services/clock';
 import { applyUpdateNow, usePwaStatus } from '../../services/pwa';
 import { useOnline } from '../../services/platform';
-import { Badge, Btn, Card, download, Field, Grid, Note, NumberInput, Range, readFileText, Select, TextInput, Toggle, useConfirm } from './kit';
-import { IconDown, IconDownload, IconEdit, IconFileJson, IconPlus, IconRestore, IconTrash, IconUp, IconUpload } from '../common/icons';
+import { Badge, Btn, Card, download, Field, Grid, Note, NumberInput, Range, readFileText, Select, Toggle, useConfirm } from './kit';
+import { IconDown, IconDownload, IconEdit, IconFileJson, IconPlus, IconRestore, IconTrash, IconUp } from '../common/icons';
 import { hashPin } from './pin';
 import { SOURCE_AR } from './TimetableSection';
 import { THEME_LABELS } from '../display/Background';
@@ -21,74 +21,6 @@ declare const __APP_VERSION__: string;
 declare const __BUILD_ID__: string;
 
 // ---------------------------------------------------------------- A. Mosque
-export function MosqueSection() {
-  const cfg = useApp((s) => s.config);
-  const m = cfg.mosque;
-  const set = (fn: (c: typeof cfg) => void) => void updateConfig(fn);
-  const [err, setErr] = useState('');
-  const [geo, setGeo] = useState('');
-  const onLogo = (f?: File) => {
-    if (!f) return;
-    if (!/^image\/(png|jpeg|svg\+xml|webp)$/.test(f.type)) { setErr('الصيغ المسموحة: PNG أو JPG أو SVG أو WebP'); return; }
-    if (f.size > 600 * 1024) { setErr('حجم الشعار أكبر من 600 كيلوبايت — صغّر الصورة ثم أعد المحاولة'); return; }
-    const r = new FileReader();
-    r.onload = () => { setErr(''); set((c) => { c.mosque.logoDataUrl = String(r.result); }); };
-    r.readAsDataURL(f);
-  };
-  return (
-    <div className="flex flex-col gap-4">
-      <Card title="بيانات المسجد">
-        <Grid>
-          <Field label="اسم المسجد بالعربية" hint="يظهر أعلى الشاشة؛ الأسماء الطويلة تلتف على سطرين وتصغر تلقائياً." wide>
-            <TextInput value={m.nameAr} maxLength={90} onCommit={(v) => set((c) => { c.mosque.nameAr = v.trim(); })} />
-          </Field>
-          <Field label="الاسم بالإنجليزية (اختياري)" wide>
-            <TextInput value={m.nameEn} dir="ltr" maxLength={90} onCommit={(v) => set((c) => { c.mosque.nameEn = v.trim(); })} />
-          </Field>
-        </Grid>
-      </Card>
-      <Card title="الشعار (اختياري)">
-        <div className="flex flex-wrap items-center gap-3">
-          {m.logoDataUrl ? <img src={m.logoDataUrl} alt="الشعار" className="h-20 w-auto rounded-xl border border-line bg-[#0B3D30] p-2" /> : <span className="text-[13px] text-muted">لا يوجد شعار</span>}
-          <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-xl border border-line bg-white px-4 text-[14px] font-bold text-ink hover:border-ink2">
-            <IconUpload size={16} />رفع شعار
-            <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="sr-only" onChange={(e) => { onLogo(e.target.files?.[0]); e.target.value = ''; }} />
-          </label>
-          {m.logoDataUrl && <Btn kind="danger" onClick={() => set((c) => { c.mosque.logoDataUrl = ''; })}><IconTrash size={16} />إزالة</Btn>}
-        </div>
-        {err && <div className="mt-2"><Note tone="error">{err}</Note></div>}
-        <p className="m-0 mt-2 text-[12px] text-muted">يُحفظ الشعار على الجهاز نفسه ويعمل دون إنترنت.</p>
-      </Card>
-      <Card title="إحداثيات المسجد (اختياري)">
-        <p className="m-0 mb-3 text-[13px] text-muted">تُستخدم في التوليد المعاير عند تفعيل «استخدام إحداثيات المسجد» في قسم «جدول المواقيت». اتركها فارغة لاستخدام مركز الولاية. لا تؤثر على أي جدول رسمي مستورد.</p>
-        <Grid>
-          <Field label="خط العرض"><TextInput dir="ltr" value={m.location.customLat?.toString() ?? ''} placeholder="23.588" onCommit={(v) => set((c) => { const n = parseFloat(v); c.mosque.location.customLat = Number.isFinite(n) && n > 16 && n < 27 ? n : null; })} /></Field>
-          <Field label="خط الطول"><TextInput dir="ltr" value={m.location.customLng?.toString() ?? ''} placeholder="58.383" onCommit={(v) => set((c) => { const n = parseFloat(v); c.mosque.location.customLng = Number.isFinite(n) && n > 51 && n < 60 ? n : null; })} /></Field>
-        </Grid>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Btn onClick={() => {
-            if (!navigator.geolocation) { setErr('هذا المتصفح لا يدعم تحديد الموقع — أدخل الإحداثيات يدوياً (من خرائط Google: اضغط مطولاً على موقع المسجد).'); return; }
-            navigator.geolocation.getCurrentPosition(
-              (pos) => {
-                const { latitude: la, longitude: lo, accuracy } = pos.coords;
-                if (la < 16 || la > 27 || lo < 51 || lo > 60) { setErr('الموقع الحالي خارج سلطنة عُمان — لم يُحفظ.'); return; }
-                setErr('');
-                set((c) => { c.mosque.location.customLat = +la.toFixed(5); c.mosque.location.customLng = +lo.toFixed(5); });
-                setGeo(`تم الحفظ (دقة الموقع ±${Math.round(accuracy)} م)`);
-              },
-              (e) => setErr(`تعذّر تحديد الموقع: ${e.message}`),
-              { enableHighAccuracy: true, timeout: 15000 },
-            );
-          }}>استخدام موقعي الحالي (وأنا في المسجد)</Btn>
-          {(m.location.customLat != null || m.location.customLng != null) && <Btn kind="ghost" onClick={() => set((c) => { c.mosque.location.customLat = null; c.mosque.location.customLng = null; })}>مسح</Btn>}
-          {geo && <span className="text-[13px] font-bold text-teal">{geo}</span>}
-        </div>
-        {err && err.includes('موقع') && <div className="mt-2"><Note tone="error">{err}</Note></div>}
-      </Card>
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------- F. Adhkar
 export function AdhkarSection({ onPreview }: { onPreview: () => void }) {
   const list = useApp((s) => s.adhkar);

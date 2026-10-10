@@ -44,6 +44,10 @@ export default defineConfig({
       workbox: {
         cacheId: 'oman-mosque-display',
         globPatterns: ['**/*.{js,css,html,svg,png,woff,woff2,json,csv,webmanifest}'],
+        // The OCR engine (~10 MB) is NOT precached: it is downloaded the first time an admin
+        // imports a timetable from an image, then kept in its own cache for offline reuse.
+        globIgnores: ['ocr/**'],
+        runtimeCaching: [{ urlPattern: ({ url }) => url.pathname.startsWith('/ocr/'), handler: 'CacheFirst', options: { cacheName: 'omd-ocr', expiration: { maxEntries: 10 } } }],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         navigateFallback: '/index.html',
         cleanupOutdatedCaches: true,

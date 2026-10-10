@@ -9,6 +9,8 @@ import { commitSchedule, restorePreviousSchedule, saveDayEdit, updateConfig, use
 import { now } from '../../services/clock';
 import { Badge, Btn, Card, download, Field, Grid, isSpreadsheet, Note, NumberInput, readFileText, readSpreadsheetAsCsv, Select, TextInput, TimeInput, useConfirm } from './kit';
 import { CalibrationCard, StatsLine } from './CalibrationCard';
+import { ImageImportButton } from './ImageImport';
+import { WilayatTablesCard } from './WilayatTables';
 import { verifyProfile } from '../../core/calibrate';
 import { IconDownload, IconEdit, IconFileCsv, IconFileJson, IconPrint, IconRestore, IconUpload } from '../common/icons';
 
@@ -56,6 +58,8 @@ export function TimetableSection() {
           <div className="mt-3"><Note tone="warn">الجدول النشط خاص بـ «{schedule.meta.locationLabel}» وليس بالولاية المختارة. جدول ولاية لا يصلح لولاية أخرى — استورد جدول «{label}».</Note></div>
         )}
       </Card>
+
+      <WilayatTablesCard currentWilayat={loc.wilayatId} />
 
       <ActiveCard schedule={schedule} today={today} onRestore={previous ? () => ask(`استعادة الجدول السابق (${previous.meta.locationLabel} — ${previous.meta.dayCount} يوماً)؟\nسيصبح الجدول الحالي هو «السابق».`, () => void restorePreviousSchedule().then((ok) => setMsg(ok ? { tone: 'ok', text: 'تمت استعادة الجدول السابق.' } : { tone: 'error', text: 'لا يوجد جدول سابق.' }))) : undefined} />
 
@@ -133,7 +137,11 @@ function ImportCard({ label, wilayatId, schedule, onCommit, isValidCurrent }: { 
       res = parseTimetableFile('x.csv', '');
       res.errors = [{ row: null, message: `تعذّرت قراءة الملف: ${(e as Error).message}` }];
     }
-    setFile({ name: f.name, res });
+    accept(f.name, res);
+  };
+
+  const accept = (name: string, res: ImportResult) => {
+    setFile({ name, res });
     const y = res.stats.years.join('/') || year;
     setNote(`تقويم وزارة الأوقاف والشؤون الدينية ${y} — ${label}`);
     setMode(res.stats.kind === 'annual' || !schedule || schedule.meta.source === 'demo' || schedule.meta.source === 'calculated' || schedule.meta.wilayatId !== wilayatId ? 'replace' : 'merge');
@@ -157,7 +165,7 @@ function ImportCard({ label, wilayatId, schedule, onCommit, isValidCurrent }: { 
   return (
     <Card title="استيراد جدول المواقيت" icon={<IconUpload size={18} />}>
       <Note>
-        المصدر الرسمي: تقويم وزارة الأوقاف والشؤون الدينية (تطبيق «تقويم عُمان» أو التقويم المطبوع). موقع الوزارة لا يوفر ملفات تنزيل أو واجهة برمجية عامة، لذا تُنقل المواقيت إلى ملف CSV/JSON ثم تُستورد هنا.
+        المصدر الرسمي: تقويم وزارة الأوقاف والشؤون الدينية (تطبيق «تقويم عُمان» أو التقويم المطبوع). موقع الوزارة لا يوفر ملفات تنزيل أو واجهة برمجية عامة، لذا تُنقل المواقيت إلى ملف CSV/JSON، أو تُلتقط صورة لجدول الشهر وتُقرأ بزر «استيراد من صورة» (القراءة على الجهاز نفسه، والصورة لا تُرفع لأي خادم).
         يقبل الاستيراد جدولاً يومياً أو شهرياً أو سنوياً، بأرقام عربية أو إنجليزية، وبصيغة 24 ساعة أو 12 ساعة (ص/م). لا يلزم أن يكون ملف السنة مكتملاً: تُستورد الأيام التي فيها مواقيت فقط، والأشهر الفارغة تبقى فارغة.
       </Note>
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -168,6 +176,7 @@ function ImportCard({ label, wilayatId, schedule, onCommit, isValidCurrent }: { 
         <a className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white px-3 text-[13px] font-bold text-ink no-underline hover:border-ink2" href="/data/template.csv" download><IconFileCsv size={16} />قالب CSV</a>
         <a className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-line bg-white px-3 text-[13px] font-bold text-ink no-underline hover:border-ink2" href="/data/template.json" download><IconFileJson size={16} />قالب JSON</a>
         <Btn small onClick={blankYear}><IconDownload size={16} />قالب سنة {year} فارغ</Btn>
+        <ImageImportButton onParsed={accept} />
       </div>
 
       {r && (

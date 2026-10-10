@@ -102,7 +102,7 @@ export function Btn({ kind = 'secondary', children, onClick, disabled, small, ti
     ghost: 'bg-transparent text-ink2 border-transparent hover:bg-paper',
   };
   return (
-    <button type={type} title={title} disabled={disabled} onClick={onClick}
+    <button type={type} title={title} aria-label={title} disabled={disabled} onClick={onClick}
       className={`inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${small ? 'h-9 px-3 text-[13px]' : 'h-11 px-4 text-[14px]'} ${k[kind]}`}>
       {children}
     </button>

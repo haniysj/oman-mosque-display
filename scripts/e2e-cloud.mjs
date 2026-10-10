@@ -97,6 +97,57 @@ const t2 = await tv.newPage(); await t2.goto(BASE + '/m/noor-muttrah'); await t2
 const fajr2 = await t2.locator('.panel .row').first().textContent();
 ok('same wilayat → same timetable', fajr2.includes('4:') && (await t2.locator('.tv-name').textContent()).includes('مسجد النور'), fajr2);
 
+// 5) Admin tabs: no separate «المسجد» tab; edit a mosque from the list (name + wilayat)
+ok('no «المسجد» admin tab', (await p.getByRole('button', { name: 'المسجد', exact: true }).count()) === 0);
+await p.getByRole('button', { name: 'المساجد والمزامنة' }).first().click(); await p.clock.runFor(1500);
+await p.getByRole('button', { name: 'تعديل مسجد النور' }).click(); await p.clock.runFor(1500);
+const dlg = p.getByRole('dialog', { name: 'تعديل بيانات المسجد' });
+ok('edit dialog opens with current name', (await dlg.locator('input').first().inputValue()) === 'مسجد النور');
+await dlg.locator('input').first().fill('مسجد النور الكبير');
+await dlg.locator('select').nth(1).selectOption('seeb'); await p.clock.runFor(200);
+ok('dialog warns: wilayat has no stored timetable', (await dlg.textContent()).includes('لا يوجد جدول مخزن لولاية'));
+await dlg.locator('select').nth(1).selectOption('muscat'); await p.clock.runFor(200);
+ok('dialog confirms auto-link to stored timetable', (await dlg.textContent()).includes('يرتبط المسجد تلقائياً بجدول ولاية'));
+await p.screenshot({ path: `${OUT}/mosque-edit-dialog.png` });
+await dlg.getByRole('button', { name: 'حفظ' }).click(); await p.clock.runFor(1500);
+ok('mosque edited in cloud', db.mosques.get('noor-muttrah')?.name_ar === 'مسجد النور الكبير' && db.mosques.get('noor-muttrah')?.version === 2, JSON.stringify(db.mosques.get('noor-muttrah')?.name_ar));
+// 6) Timetable page lists stored wilayat timetables with their mosques
+await p.getByRole('button', { name: 'جدول المواقيت' }).first().click(); await p.clock.runFor(1500);
+const wt = p.getByText('جداول الولايات المخزنة').locator('xpath=ancestor::section[1]');
+const wtText = await wt.textContent();
+ok('stored timetables card lists wilayat + mosques', wtText.includes('مسقط') && wtText.includes('مسجد النور الكبير') && wtText.includes('يوماً'), wtText.slice(0, 160));
+await wt.screenshot({ path: `${OUT}/wilayat-tables.png` });
+ok('laptop: still no JS errors', errs.length === 0, errs.join('|'));
+
+// 7) Import a timetable from an image (real OCR, no fake clock)
+const ocx = await b.newContext({ viewport: { width: 1366, height: 900 }, serviceWorkers: 'block' });
+const o = await ocx.newPage(); const oerrs = []; o.on('pageerror', (e) => oerrs.push(e.message));
+await o.goto(BASE + '/#/admin'); await o.waitForTimeout(800);
+await o.getByRole('button', { name: 'جدول المواقيت' }).first().click(); await o.waitForTimeout(300);
+const t0 = Date.now();
+await o.locator('input[type=file][accept*=image]').setInputFiles(new URL('./ocr-fixtures/mara-latin.png', import.meta.url).pathname);
+await o.getByText('قراءة الصورة', { exact: true }).waitFor({ timeout: 180000 });
+const secs = ((Date.now() - t0) / 1000).toFixed(1);
+const grid = await o.locator('input[aria-label^="الفجر"]').count();
+const truth = readFileSync(new URL('../research/mara-muscat-2026-10.csv', import.meta.url), 'utf8').trim().split('\n').slice(1).map((l) => l.split(','));
+let exact = 0;
+for (let i = 0; i < truth.length; i++) {
+  const vals = await Promise.all(['الفجر', 'الشروق', 'الظهر', 'العصر', 'المغرب', 'العشاء'].map((n) => o.locator(`input[aria-label="${n} ${truth[i][0]}"]`).inputValue().catch(() => '')));
+  if (vals.join() === truth[i].slice(1).join()) exact++;
+}
+ok(`OCR read ${grid} rows in ${secs}s`, grid === 31);
+ok('OCR values match the source table', exact === 31, `${exact}/31 rows exact`);
+await o.screenshot({ path: `${OUT}/image-import-review.png`, fullPage: false });
+await o.getByRole('button', { name: 'متابعة إلى فحص الاستيراد' }).click(); await o.waitForTimeout(300);
+const prev = await o.getByText('صورة: mara-latin.png').locator('xpath=ancestor::div[2]').textContent();
+ok('image rows pass the regular import validation', prev.includes('صالح') && prev.includes('31 يوماً'), prev.slice(0, 120));
+await o.getByRole('button', { name: 'اعتماد الاستيراد' }).click(); await o.waitForTimeout(300);
+const c2 = o.getByRole('button', { name: 'تأكيد' }); if (await c2.count()) await c2.click();
+await o.waitForTimeout(800);
+const saved = await o.evaluate(async () => { const db = await new Promise((r) => { const q = indexedDB.open('oman-mosque-display', 1); q.onsuccess = () => r(q.result); }); return new Promise((r) => { const g = db.transaction('kv').objectStore('kv').get('schedule'); g.onsuccess = () => r(g.result?.days?.['2026-10-01']); }); });
+ok('imported from image: 1 Oct asr = 15:26 (12h converted)', saved?.asr === '15:26' && saved?.fajr === '04:43', JSON.stringify(saved));
+ok('image import: no JS errors', oerrs.length === 0, oerrs.join('|'));
+
 await b.close();
 console.log(`\n${results.filter(Boolean).length}/${results.length} cloud checks passed`);
 process.exit(results.every(Boolean) ? 0 : 1);

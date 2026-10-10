@@ -75,3 +75,15 @@ export const BrandMark = ({ size = 28 }: { size?: number }) => (
     <path d="M26 50V40a6 6 0 0 1 12 0v10" fill="none" stroke="#D4AF61" strokeWidth="3" />
   </svg>
 );
+/** Image file (purple, by file-type colour convention). */
+export const IconFileImage = ({ size = 18, ...r }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden {...r}>
+    <path d="M6 2h8l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#7C3AED" />
+    <path d="M14 2v5h5" fill="#C4B5FD" />
+    <circle cx="9.5" cy="11" r="1.6" fill="#fff" />
+    <path d="m6.5 18 3.5-4 2.5 2.5L15 13l2.5 5z" fill="#fff" />
+  </svg>
+);
+export const IconMosque = ({ size, ...r }: P) => (
+  <svg {...base(size, r)}><path d="M12 3c-2.5 2-4.5 3.6-4.5 6.5h9C16.5 6.6 14.5 5 12 3zM4 21V12M20 21V12M4 12l0-3M20 12V9M7.5 9.5V21h9V9.5M3 21h18M10.5 21v-4a1.5 1.5 0 0 1 3 0v4" /></svg>
+);

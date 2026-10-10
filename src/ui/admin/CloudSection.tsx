@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { GOVERNORATES, findGovernorate, locationLabel } from '../../domain/oman';
 import {
-  adminChangePassword, adminInit, adminLogin, adminLogout, adminStatus, bindDevice, createMosque, deleteMosque,
+  adminChangePassword, adminInit, adminLogin, adminLogout, adminStatus, bindDevice, createMosque, deleteMosque, getMosqueConfig, updateMosque,
   listMosques, listTimetables, pushMosque, pushTimetable, syncNow, unbindDevice, useCloud,
   type MosqueSummary, type TimetableSummary,
 } from '../../services/cloud';
-import { useApp } from '../../store/appStore';
+import { updateConfig, useApp } from '../../store/appStore';
+import type { AppConfig } from '../../domain/types';
+import { MosqueEditor, WilayatTimetableHint } from './MosqueEditor';
 import { useOnline } from '../../services/platform';
 import { Badge, Btn, Card, Field, Grid, Note, Select, useConfirm } from './kit';
-import { IconCheck, IconDownload, IconLock, IconPlus, IconRestore, IconTrash, IconUpload, IconWifiOff } from '../common/icons';
+import { IconCheck, IconDownload, IconEdit, IconLock, IconPlus, IconRestore, IconTrash, IconUpload, IconWifiOff } from '../common/icons';
 
 const fmt = (iso: string | null) => { if (!iso) return '—'; try { return new Date(iso).toLocaleString('ar-OM-u-nu-latn', { timeZone: 'Asia/Muscat', dateStyle: 'medium', timeStyle: 'short' }); } catch { return iso; } };
 const linkFor = (code: string) => `${location.origin}/m/${code}`;
@@ -37,6 +39,7 @@ export function CloudSection() {
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState<{ code: string | null; cfg: AppConfig } | null>(null);
 
   const refresh = async () => {
     setErr('');
@@ -55,9 +58,20 @@ export function CloudSection() {
   const bound = cloud.binding;
   const boundMosque = mosques?.find((m) => m.code === bound?.code);
 
+  const openEdit = (code: string) => void run(async () => setEditing({ code, cfg: await getMosqueConfig(code) }), '');
+  const saveEdit = (m: AppConfig['mosque']) => {
+    const e = editing!;
+    if (!e.code) { void updateConfig((c) => { c.mosque = m; }).then(() => { setEditing(null); setMsg('حُفظت بيانات المسجد على هذا الجهاز.'); }); return; }
+    void run(async () => { await updateMosque(e.code!, { ...e.cfg, mosque: m }); setEditing(null); }, `حُفظت بيانات «${m.nameAr}».`);
+  };
+
   return (
     <div className="flex flex-col gap-4">
       {ui}
+      {editing && (
+        <MosqueEditor title={editing.code ? 'تعديل بيانات المسجد' : 'بيانات المسجد على هذا الجهاز'} codeLabel={editing.code ?? undefined}
+          initial={editing.cfg.mosque} tables={tables} busy={busy} onSave={saveEdit} onClose={() => setEditing(null)} />
+      )}
       {!online && <Note tone="warn"><span className="inline-flex items-center gap-1.5"><IconWifiOff size={15} />لا يوجد اتصال بالإنترنت. الشاشة تعمل بآخر بيانات محفوظة، والمزامنة تُستأنف تلقائياً عند الاتصال.</span></Note>}
       {err && <Note tone="error">{err}</Note>}
       {msg && <Note tone="ok">{msg}</Note>}
@@ -89,7 +103,10 @@ export function CloudSection() {
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            <p className="m-0 text-[14px] text-ink2">اختر المسجد الذي تعرضه هذه الشاشة، فتُنزَّل إعداداته وجدول ولايته وتُحفظ على الجهاز.</p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="m-0 text-[14px] text-ink2">اختر المسجد الذي تعرضه هذه الشاشة، فتُنزَّل إعداداته وجدول ولايته وتُحفظ على الجهاز.</p>
+              <Btn small onClick={() => setEditing({ code: null, cfg })}><IconEdit size={14} />بيانات المسجد على هذا الجهاز</Btn>
+            </div>
             {mosques?.length ? (
               <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
                 {mosques.map((m) => (
@@ -144,7 +161,7 @@ export function CloudSection() {
         )}
       </Card>
 
-      {cloud.admin && <AddMosque busy={busy} onCreate={(code, name, gov, wil, bindAfter) => void run(async () => {
+      {cloud.admin && <AddMosque busy={busy} tables={tables} onCreate={(code, name, gov, wil, bindAfter) => void run(async () => {
         await createMosque(code, name, gov, wil, cfg, adhkar);
         if (bindAfter) await bindDevice(code, name);
       }, `أُضيف «${name}».${bindAfter ? ' وربط هذا الجهاز به.' : ''}`)} />}
@@ -164,7 +181,8 @@ export function CloudSection() {
                       <div className="flex flex-wrap justify-center gap-1.5">
                         {bound?.code === m.code ? <Badge tone="teal">هذا الجهاز</Badge> : <Btn small disabled={busy} onClick={() => ask(`ربط هذا الجهاز بـ «${m.name_ar}»؟\nستُستبدل إعدادات هذا الجهاز وجدوله بنسخة المسجد.`, () => void run(() => bindDevice(m.code, m.name_ar), `تم ربط الجهاز بـ «${m.name_ar}».`))}>ربط</Btn>}
                         <CopyLink code={m.code} />
-                        {cloud.admin && <Btn small kind="danger" disabled={busy} onClick={() => ask(`حذف «${m.name_ar}» من السحابة؟`, () => ask(`تأكيد نهائي: حذف «${m.name_ar}» (${m.code}). الشاشات المرتبطة به تتوقف عن التحديث وتبقى بآخر نسخة.`, () => void run(() => deleteMosque(m.code), 'تم الحذف.')))}><IconTrash size={14} /></Btn>}
+                        {cloud.admin && <Btn small disabled={busy || !online} onClick={() => openEdit(m.code)} title={`تعديل ${m.name_ar}`}><IconEdit size={14} /></Btn>}
+                        {cloud.admin && <Btn small kind="danger" title={`حذف ${m.name_ar}`} disabled={busy} onClick={() => ask(`حذف «${m.name_ar}» من السحابة؟`, () => ask(`تأكيد نهائي: حذف «${m.name_ar}» (${m.code}). الشاشات المرتبطة به تتوقف عن التحديث وتبقى بآخر نسخة.`, () => void run(() => deleteMosque(m.code), 'تم الحذف.')))}><IconTrash size={14} /></Btn>}
                       </div>
                     </td>
                   </tr>
@@ -175,27 +193,7 @@ export function CloudSection() {
         )}
       </Card>
 
-      <Card title="جداول الولايات في السحابة">
-        <p className="m-0 mb-2 text-[13px] text-muted">لكل ولاية جدول واحد تشترك فيه كل مساجدها. يُرفع من أي جهاز مرتبط بمسجد في تلك الولاية بعد تسجيل الدخول.</p>
-        {!tables?.length ? <p className="m-0 text-[13px] text-muted">{tables ? 'لا توجد جداول بعد.' : '—'}</p> : (
-          <div className="overflow-x-auto rounded-xl border border-line">
-            <table className="w-full border-collapse text-[13px]">
-              <thead className="bg-paper"><tr><th className="px-2 py-2 text-right">الولاية</th><th className="px-2 py-2">الأيام</th><th className="px-2 py-2">المعايرة</th><th className="px-2 py-2">المساجد</th><th className="px-2 py-2">آخر تحديث</th></tr></thead>
-              <tbody>
-                {tables.map((t) => (
-                  <tr key={t.wilayat_id} className="border-t border-line text-center">
-                    <td className="px-2 py-2 text-right font-bold">{locationLabel(t.governorate_id, t.wilayat_id)}</td>
-                    <td className="px-2 py-2">{t.days}</td>
-                    <td className="px-2 py-2">{t.calibrated ? <Badge tone="teal">معايرة</Badge> : '—'}</td>
-                    <td className="px-2 py-2">{t.mosques}</td>
-                    <td className="whitespace-nowrap px-2 py-2 text-muted">{fmt(t.updated_at)} · v{t.version}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+      <Note>جداول الولايات المخزنة تظهر في صفحة «جدول المواقيت». كل مسجد يأخذ تلقائياً جدول ولايته.</Note>
 
       <Card title="تشغيل نسخة المسجد على شاشة دون إنترنت">
         <ol className="m-0 list-decimal space-y-1 pr-5 text-[14px] leading-7 text-ink2">
@@ -209,7 +207,7 @@ export function CloudSection() {
   );
 }
 
-function AddMosque({ busy, onCreate }: { busy: boolean; onCreate: (code: string, name: string, gov: string, wil: string, bindAfter: boolean) => void }) {
+function AddMosque({ busy, tables, onCreate }: { busy: boolean; tables: TimetableSummary[] | null; onCreate: (code: string, name: string, gov: string, wil: string, bindAfter: boolean) => void }) {
   const cfg = useApp((s) => s.config);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
@@ -228,6 +226,7 @@ function AddMosque({ busy, onCreate }: { busy: boolean; onCreate: (code: string,
         <Field label="المحافظة"><Select value={gov} options={GOVERNORATES.map((g) => ({ value: g.id, label: g.ar }))} onChange={(v) => { setGov(v); setWil(findGovernorate(v)!.wilayats[0].id); }} /></Field>
         <Field label="الولاية"><Select value={wil} options={wilayats.map((w) => ({ value: w.id, label: w.ar }))} onChange={setWil} /></Field>
       </Grid>
+      <div className="mt-3"><WilayatTimetableHint tables={tables} governorateId={gov} wilayatId={wil} /></div>
       <label className="mt-3 flex items-center gap-2 text-[14px] text-ink"><input type="checkbox" className="accent-[#1F7A6D]" checked={bindAfter} onChange={(e) => setBindAfter(e.target.checked)} />ربط هذا الجهاز بالمسجد الجديد بعد إضافته</label>
       <p className="m-0 mt-2 text-[12px] text-muted">يبدأ المسجد الجديد بنسخة من إعدادات الإقامة والعرض والأذكار الحالية على هذا الجهاز، ويمكن تعديلها لاحقاً.</p>
       {code && !codeOk && <div className="mt-2"><Note tone="warn">الرمز يجب أن يكون 3–40 حرفاً إنجليزياً صغيراً أو رقماً أو شرطة.</Note></div>}

@@ -11,14 +11,13 @@ import { BrandMark, IconClose, IconLock, IconWifi, IconWifiOff, IconAlert } from
 import { Badge, Btn, Note } from './kit';
 import { TimetableSection, SOURCE_AR, sourceTone } from './TimetableSection';
 import { FridaySection, HijriSection, IqamahSection, QuietSection } from './PrayerSections';
-import { AdhkarSection, BackupSection, DiagnosticsSection, DisplaySection, MosqueSection } from './OtherSections';
+import { AdhkarSection, BackupSection, DiagnosticsSection, DisplaySection } from './OtherSections';
 import { checkPin } from './pin';
 import { CloudSection } from './CloudSection';
 import { useCloud } from '../../services/cloud';
 
 const TABS = [
   { id: 'cloud', label: 'المساجد والمزامنة' },
-  { id: 'mosque', label: 'المسجد' },
   { id: 'timetable', label: 'جدول المواقيت' },
   { id: 'iqamah', label: 'الإقامة' },
   { id: 'friday', label: 'الجمعة' },
@@ -91,7 +90,7 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
   const online = useOnline();
   const cloud = useCloud();
   const pwa = usePwaStatus();
-  const [tab, setTab] = useState<TabId>(() => (sessionStorage.getItem('omd-admin-tab') as TabId) || (schedule ? 'mosque' : 'cloud'));
+  const [tab, setTab] = useState<TabId>(() => ((t) => (TABS.some((x) => x.id === t) ? t : 'cloud'))(sessionStorage.getItem('omd-admin-tab') as TabId));
   useEffect(() => { try { sessionStorage.setItem('omd-admin-tab', tab); } catch { /* ignore */ } }, [tab]);
   const warnings = useAdminWarnings();
   const [clockWarn, setClockWarn] = useState(false);
@@ -121,7 +120,6 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
 
   const content: Record<TabId, ReactNode> = {
     cloud: <CloudSection />,
-    mosque: <MosqueSection />,
     timetable: <TimetableSection />,
     iqamah: <IqamahSection />,
     friday: <FridaySection />,
