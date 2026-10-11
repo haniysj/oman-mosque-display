@@ -45,10 +45,38 @@ await wire(lap);
 const p = await lap.newPage(); const errs = []; p.on('pageerror', (e) => errs.push(e.message));
 await p.clock.install({ time: at });
 await p.goto(BASE + '/#/admin'); await p.clock.runFor(800);
+// The settings are locked behind the administrator password (first use: create it)
+ok('settings hidden before sign-in', (await p.getByRole('dialog', { name: 'دخول المشرف' }).count()) === 1 && (await p.getByText('المساجد والمزامنة').count()) === 0);
 await p.getByPlaceholder('كلمة المرور (6 أحرف على الأقل)').fill('secret123');
 await p.getByPlaceholder('تأكيد كلمة المرور').fill('secret123');
-await p.getByRole('button', { name: 'إنشاء كلمة المرور' }).click(); await p.clock.runFor(800);
+await p.getByRole('button', { name: 'إنشاء والدخول' }).click(); await p.clock.runFor(1200);
 ok('admin password created', db.pw === 'secret123');
+ok('settings open after sign-in', (await p.getByText('المساجد والمزامنة').count()) > 0);
+// reload → locked again; wrong password refused; right password opens
+await p.reload(); await p.clock.runFor(1200);
+ok('reload → locked again', (await p.getByRole('dialog', { name: 'دخول المشرف' }).count()) === 1);
+await p.getByPlaceholder('كلمة مرور المشرف').fill('wrong-pass'); await p.getByRole('button', { name: 'دخول', exact: true }).click(); await p.clock.runFor(800);
+ok('wrong password refused', (await p.getByText('كلمة المرور غير صحيحة').count()) === 1 && (await p.getByText('المساجد والمزامنة').count()) === 0);
+await p.getByPlaceholder('كلمة مرور المشرف').fill('secret123'); await p.getByRole('button', { name: 'دخول', exact: true }).click(); await p.clock.runFor(1200);
+ok('right password opens settings', (await p.getByText('المساجد والمزامنة').count()) > 0);
+// offline sign-in uses the verifier saved on this device (no password stored)
+const stored = await p.evaluate(() => JSON.stringify(localStorage));
+ok('password itself is not stored on the device', !stored.includes('secret123'));
+{ // offline: sign in with the on-device verifier
+  const off = await b.newContext({ viewport: { width: 1280, height: 900 } });
+  await wire(off);
+  const q = await off.newPage();
+  await q.goto(BASE + '/#/admin'); await q.waitForTimeout(800);
+  await q.getByPlaceholder('كلمة مرور المشرف').fill('secret123'); await q.getByRole('button', { name: 'دخول', exact: true }).click(); await q.waitForTimeout(1500);
+  await q.evaluate(async () => { await navigator.serviceWorker.ready; });
+  await q.reload(); await q.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 15000 });
+  await off.setOffline(true); await q.reload(); await q.waitForTimeout(1500);
+  await q.getByPlaceholder('كلمة مرور المشرف').fill('nope-nope'); await q.getByRole('button', { name: 'دخول', exact: true }).click(); await q.waitForTimeout(500);
+  const refused = (await q.getByText('كلمة المرور غير صحيحة').count()) === 1;
+  await q.getByPlaceholder('كلمة مرور المشرف').fill('secret123'); await q.getByRole('button', { name: 'دخول', exact: true }).click(); await q.waitForTimeout(800);
+  ok('offline sign-in: wrong refused, right opens (on-device check)', refused && (await q.getByText('المساجد والمزامنة').count()) > 0);
+  await off.close();
+}
 await p.getByPlaceholder('جامع النور').fill('جامع السلطان قابوس');
 await p.getByPlaceholder('noor-bawshar').fill('sq-muscat');
 const addCard = p.getByText('إضافة مسجد').locator('xpath=ancestor::section[1]');
@@ -172,8 +200,10 @@ ok('laptop: still no JS errors', errs.length === 0, errs.join('|'));
 
 // 7) Import a timetable from an image (real OCR, no fake clock)
 const ocx = await b.newContext({ viewport: { width: 1366, height: 900 }, serviceWorkers: 'block' });
+await wire(ocx);
 const o = await ocx.newPage(); const oerrs = []; o.on('pageerror', (e) => oerrs.push(e.message));
 await o.goto(BASE + '/#/admin'); await o.waitForTimeout(800);
+await o.getByPlaceholder('كلمة مرور المشرف').fill('secret123'); await o.getByRole('button', { name: 'دخول', exact: true }).click(); await o.waitForTimeout(1200);
 await o.getByRole('button', { name: 'جدول المواقيت' }).first().click(); await o.waitForTimeout(300);
 await o.getByRole('button', { name: 'فتح جدول الجهاز' }).click(); await o.waitForTimeout(300);
 const t0 = Date.now();

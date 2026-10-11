@@ -205,10 +205,34 @@ export const adminStatus = () => rpc<{ initialized: boolean }>('mosque_admin_sta
 export const listMosques = () => rpc<MosqueSummary[]>('mosque_list');
 export const listTimetables = () => rpc<TimetableSummary[]>('mosque_timetables_summary');
 
-export async function adminInit(password: string) { await rpc('mosque_admin_init', { p_password: password }); adminPassword = password; set({ admin: true }); }
-export async function adminLogin(password: string) { await rpc('mosque_admin_login', { p_password: password }); adminPassword = password; set({ admin: true }); }
+// Offline sign-in: after a successful online sign-in the device keeps only a salted SHA-256 verifier
+// (never the password itself), so the settings can still be opened when the screen is offline.
+const LS_VERIFIER = 'omd-admin-verifier';
+async function sha256Hex(text: string): Promise<string | null> {
+  try {
+    if (!crypto?.subtle) return null;
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  } catch { return null; }
+}
+async function rememberVerifier(password: string) {
+  const salt = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  const h = await sha256Hex(`omd-admin:${salt}:${password}`);
+  if (h) writeJson(LS_VERIFIER, { salt, h });
+}
+export const hasOfflineVerifier = () => !!readJson<{ salt: string; h: string }>(LS_VERIFIER);
+/** Opens the settings offline when the password matches the verifier saved at the last online sign-in. */
+export async function adminLoginOffline(password: string) {
+  const v = readJson<{ salt: string; h: string }>(LS_VERIFIER);
+  if (!v) throw new Error('أول دخول على هذا الجهاز يحتاج اتصالاً بالإنترنت');
+  if ((await sha256Hex(`omd-admin:${v.salt}:${password}`)) !== v.h) throw new Error('كلمة المرور غير صحيحة');
+  adminPassword = password; set({ admin: true });
+}
+
+export async function adminInit(password: string) { await rpc('mosque_admin_init', { p_password: password }); adminPassword = password; set({ admin: true }); void rememberVerifier(password); }
+export async function adminLogin(password: string) { await rpc('mosque_admin_login', { p_password: password }); adminPassword = password; set({ admin: true }); void rememberVerifier(password); }
 export function adminLogout() { adminPassword = null; set({ admin: false, pendingUpload: false }); }
-export async function adminChangePassword(oldP: string, newP: string) { await rpc('mosque_admin_change_password', { p_old: oldP, p_new: newP }); adminPassword = newP; }
+export async function adminChangePassword(oldP: string, newP: string) { await rpc('mosque_admin_change_password', { p_old: oldP, p_new: newP }); adminPassword = newP; void rememberVerifier(newP); }
 
 const requirePw = () => { if (!adminPassword) throw new Error('سجّل الدخول كمشرف أولاً'); return adminPassword; };
 

@@ -13,7 +13,6 @@ import { applyUpdateNow, usePwaStatus } from '../../services/pwa';
 import { useOnline } from '../../services/platform';
 import { Badge, Btn, Card, download, Field, Grid, Note, NumberInput, Range, readFileText, Select, Toggle, useConfirm } from './kit';
 import { IconDown, IconDownload, IconEdit, IconFileJson, IconPlus, IconRestore, IconTrash, IconUp } from '../common/icons';
-import { hashPin } from './pin';
 import { SOURCE_AR } from './TimetableSection';
 import { THEME_LABELS } from '../display/Background';
 
@@ -135,7 +134,6 @@ export function DisplaySection() {
   const d = cfg.display;
   const set = (fn: (c: typeof cfg) => void) => void updateConfig(fn);
   const detected = classifyDevice(readDeviceEnv());
-  const [pin, setPin] = useState('');
   const DEV_AR = { tv: 'تلفاز', desktop: 'حاسوب', tablet: 'جهاز لوحي', mobile: 'هاتف' };
   return (
     <div className="flex flex-col gap-4">
@@ -192,14 +190,6 @@ export function DisplaySection() {
         </div>
       </Card>
 
-      <Card title="رمز الدخول للإعدادات">
-        <p className="m-0 mb-3 text-[13px] text-muted">اختياري: يمنع المصلين من تغيير الإعدادات من شاشة المسجد. {d.adminPinHash ? 'الرمز مفعّل حالياً.' : 'لا يوجد رمز حالياً.'}</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <input className="h-11 w-40 rounded-xl border border-line px-3 text-center" dir="ltr" inputMode="numeric" type="password" placeholder="4–8 أرقام" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))} />
-          <Btn kind="primary" disabled={pin.length < 4} onClick={() => void hashPin(pin).then((h) => { set((c) => { c.display.adminPinHash = h; }); setPin(''); })}>حفظ الرمز</Btn>
-          {d.adminPinHash && <Btn kind="danger" onClick={() => set((c) => { c.display.adminPinHash = ''; })}>إلغاء الرمز</Btn>}
-        </div>
-      </Card>
     </div>
   );
 }

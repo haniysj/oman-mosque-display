@@ -23,6 +23,23 @@ async function seed(page, mutate) {
   }, mutate ? mutate(structuredClone(backup)) : backup);
 }
 
+// Settings are behind the administrator password: mock the server and sign in.
+async function adminLogin(ctx, page) {
+  if (!page) await ctx.route(/supabase\.co\/rest\/v1\/rpc\//, async (route) => {
+    const fn = route.request().url().split('/rpc/')[1];
+    const a = JSON.parse(route.request().postData() || '{}');
+    const ok200 = (b) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(b) });
+    if (fn === 'mosque_admin_status') return ok200({ initialized: true });
+    if (fn === 'mosque_admin_login') return a.p_password === 'test1234' ? ok200(true) : route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ message: 'BAD_PASSWORD' }) });
+    if (fn === 'mosque_list' || fn === 'mosque_timetables_summary') return ok200([]);
+    return ok200(null);
+  });
+  if (page) {
+    await page.getByPlaceholder('كلمة مرور المشرف').fill('test1234');
+    await page.getByRole('button', { name: 'دخول', exact: true }).click();
+  }
+}
+
 async function shot(browser, { name, w, h, at, ua, mutate, hash = '', isMobile = false, check }) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, userAgent: ua, isMobile, hasTouch: isMobile, serviceWorkers: 'block', deviceScaleFactor: 1 });
   const page = await ctx.newPage();
@@ -133,9 +150,11 @@ for (const tab of ['timetable', 'iqamah', 'friday', 'quiet', 'diagnostics']) {
     await page.clock.install({ time: muscat(SAT, '15:20:00') });
     await seed(page);
     await page.evaluate((t) => sessionStorage.setItem('omd-admin-tab', t), tab);
+    await adminLogin(ctx);
     await page.goto(BASE + '/#/admin');
     await page.reload();
     await page.clock.runFor(800);
+    await adminLogin(ctx, page); await page.clock.runFor(800);
     await page.waitForTimeout(300);
     await page.screenshot({ path: `${OUT}/admin-${tab}-${w}.png`, fullPage: true });
     const of = await page.evaluate(() => { const el = document.querySelector('[aria-label="لوحة الإدارة"]'); return el ? el.scrollWidth > el.clientWidth + 1 : false; });
@@ -152,7 +171,9 @@ for (const tab of ['timetable', 'iqamah', 'friday', 'quiet', 'diagnostics']) {
   await page.clock.install({ time: muscat(SAT, '15:20:00') });
   await seed(page);
   await page.evaluate(() => sessionStorage.setItem('omd-admin-tab', 'iqamah'));
+  await adminLogin(ctx);
   await page.goto(BASE + '/#/admin'); await page.reload(); await page.clock.runFor(800);
+  await adminLogin(ctx, page); await page.clock.runFor(800);
   const daily = page.getByText('الإقامة اليومية').locator('xpath=ancestor::section[1]');
   const asrBox = daily.locator('div.grid', { has: page.getByText('العصر', { exact: true }) }).first();
   await asrBox.getByText('تثبيت موعد الإقامة').click(); await page.clock.runFor(300);

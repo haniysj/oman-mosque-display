@@ -12,9 +12,8 @@ import { Badge, Btn, Note } from './kit';
 import { TimetableSection, SOURCE_AR, sourceTone } from './TimetableSection';
 import { FridaySection, HijriSection, IqamahSection, QuietSection } from './PrayerSections';
 import { AdhkarSection, BackupSection, DiagnosticsSection, DisplaySection } from './OtherSections';
-import { checkPin } from './pin';
 import { CloudSection } from './CloudSection';
-import { useCloud } from '../../services/cloud';
+import { adminInit, adminLogin, adminLoginOffline, adminStatus, hasOfflineVerifier, useCloud } from '../../services/cloud';
 
 const TABS = [
   { id: 'cloud', label: 'المساجد والمزامنة' },
@@ -30,27 +29,64 @@ const TABS = [
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
 
-let unlockedThisSession = false;
-
 export function Admin({ onClose }: { onClose: () => void }) {
-  const cfg = useApp((s) => s.config);
-  const [unlocked, setUnlocked] = useState(unlockedThisSession || !cfg.display.adminPinHash);
-  if (!unlocked) return <PinGate onClose={onClose} onOk={() => { unlockedThisSession = true; setUnlocked(true); }} hash={cfg.display.adminPinHash} />;
+  const cloud = useCloud();
+  // The settings are shown only after the administrator password is entered (kept in memory only).
+  if (!cloud.admin) return <AdminGate onClose={onClose} />;
   return <AdminPanel onClose={onClose} />;
 }
 
-function PinGate({ hash, onOk, onClose }: { hash: string; onOk: () => void; onClose: () => void }) {
-  const [pin, setPin] = useState('');
-  const [bad, setBad] = useState(false);
-  const submit = async () => { if (await checkPin(pin, hash)) onOk(); else { setBad(true); setPin(''); } };
+function AdminGate({ onClose }: { onClose: () => void }) {
+  const online = useOnline();
+  const [initialized, setInitialized] = useState<boolean | null>(null);
+  const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!online) { setInitialized(true); return; }
+    adminStatus().then((st) => setInitialized(st.initialized)).catch(() => setInitialized(true));
+  }, [online]);
+
+  const submit = async () => {
+    setErr(''); setBusy(true);
+    try {
+      if (initialized === false) {
+        if (pw.length < 6) throw new Error('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
+        if (pw !== pw2) throw new Error('كلمتا المرور غير متطابقتين');
+        await adminInit(pw);
+      } else if (!online) {
+        await adminLoginOffline(pw);
+      } else {
+        try { await adminLogin(pw); } catch (e) {
+          // server unreachable → fall back to the verifier saved at the last online sign-in
+          if (/الخادم|مهلة/.test((e as Error).message) && hasOfflineVerifier()) await adminLoginOffline(pw); else throw e;
+        }
+      }
+    } catch (e) { setErr((e as Error).message); setPw(''); } finally { setBusy(false); }
+  };
+
+  const first = initialized === false;
   return (
-    <div className="fixed inset-0 z-[90] grid place-items-center bg-ink/80 p-4 font-cairo" dir="rtl">
-      <form className="w-full max-w-xs rounded-2xl bg-white p-5 text-center" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
+    <div className="fixed inset-0 z-[90] grid place-items-center bg-ink/85 p-4 font-cairo" dir="rtl" role="dialog" aria-modal aria-label="دخول المشرف">
+      <form className="w-full max-w-sm rounded-2xl bg-white p-5 text-center" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
         <div className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-2xl bg-paper text-ink"><IconLock size={22} /></div>
-        <h2 className="m-0 mb-3 text-[18px] font-extrabold text-ink">رمز الدخول للإعدادات</h2>
-        <input autoFocus className="h-12 w-full rounded-xl border border-line text-center text-[22px] tracking-[0.4em]" dir="ltr" type="password" inputMode="numeric" value={pin} onChange={(e) => { setBad(false); setPin(e.target.value.replace(/\D/g, '').slice(0, 8)); }} />
-        {bad && <p className="m-0 mt-2 text-[13px] font-bold text-rose">الرمز غير صحيح</p>}
-        <div className="mt-4 flex justify-center gap-2"><Btn onClick={onClose}>رجوع</Btn><Btn kind="primary" type="submit">دخول</Btn></div>
+        <h2 className="m-0 mb-1 text-[18px] font-extrabold text-ink">دخول المشرف</h2>
+        <p className="m-0 mb-3 text-[13px] text-muted">{first ? 'أول استخدام: أنشئ كلمة مرور المشرف لحماية الإعدادات.' : 'أدخل كلمة مرور المشرف لفتح الإعدادات.'}</p>
+        {initialized === null ? <p className="m-0 text-[13px] text-muted">جارٍ التحقق…</p> : (
+          <>
+            <input autoFocus className="h-12 w-full rounded-xl border border-line px-3 text-center text-[16px]" dir="ltr" type="password" autoComplete={first ? 'new-password' : 'current-password'}
+              placeholder={first ? 'كلمة المرور (6 أحرف على الأقل)' : 'كلمة مرور المشرف'} value={pw} onChange={(e) => { setErr(''); setPw(e.target.value); }} />
+            {first && <input className="mt-2 h-12 w-full rounded-xl border border-line px-3 text-center text-[16px]" dir="ltr" type="password" autoComplete="new-password" placeholder="تأكيد كلمة المرور" value={pw2} onChange={(e) => setPw2(e.target.value)} />}
+            {!online && <p className="m-0 mt-2 text-[12px] text-ink2">{hasOfflineVerifier() ? 'لا يوجد إنترنت — يتم التحقق على الجهاز.' : 'لا يوجد إنترنت — أول دخول على هذا الجهاز يحتاج اتصالاً.'}</p>}
+            {err && <p className="m-0 mt-2 text-[13px] font-bold text-rose">{err}</p>}
+          </>
+        )}
+        <div className="mt-4 flex justify-center gap-2">
+          <Btn onClick={onClose}>رجوع</Btn>
+          <Btn kind="primary" type="submit" disabled={busy || !pw || initialized === null}>{first ? 'إنشاء والدخول' : 'دخول'}</Btn>
+        </div>
+        <p className="m-0 mt-3 text-[11px] text-muted">كلمة المرور لا تُحفظ على الجهاز، وتُطلب من جديد عند إعادة تحميل الصفحة.</p>
       </form>
     </div>
   );
