@@ -293,6 +293,9 @@ button { font-family: inherit; }
 .split--right .split-times { border-left: 2px solid var(--line-d); }
 .split--left .split-times { border-right: 2px solid var(--line-d); }
 .split-times-inner { position: absolute; top: 0; }
+.split-times-inner--tv .tv-foot .source-badge { font-size: 18px; }
+/* half: the TV design shows its own countdown; the adhkar side fades with the rest */
+.split--half.is-countdown .split-side { filter: blur(3px); opacity: .3; transition: filter .6s ease, opacity .6s ease; }
 .split--right .split-times-inner { right: 0; transform-origin: top right; }
 .split--left .split-times-inner { left: 0; transform-origin: top left; }
 .split-times-inner .m-root { height: 100%; overflow: hidden; }

@@ -188,7 +188,7 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
           {state.phase === 'adhkar'
             ? <AdhkarScreen state={state} cfg={cfg} />
             : cfg.display.screenLayout !== 'full'
-              ? <SplitView state={state} cfg={cfg} hasSchedule={!!schedule} onNameTap={onNameTap} stage={stageFor(vp.w, vp.h)} />
+              ? <SplitView state={state} cfg={cfg} hasSchedule={!!schedule} onNameTap={onNameTap} onOpenAdmin={onOpenAdmin} stage={stageFor(vp.w, vp.h)} />
               : <TvView state={state} cfg={cfg} hasSchedule={!!schedule} onOpenAdmin={onOpenAdmin} onNameTap={onNameTap} />}
           {controlBar}
         </Stage>
@@ -388,29 +388,46 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin, onNameTap }: { state: Di
 // ------------------------------------------------------------------------------ Split screen (TV / desktop)
 
 /** Prayer times on a third or a half of the screen; the rest shows rotating adhkar (or the countdown). */
-function SplitView({ state, cfg, hasSchedule, onNameTap, stage }: { state: DisplayState; cfg: AppConfig; hasSchedule: boolean; onNameTap: () => void; stage: { w: number; h: number } }) {
+function SplitView({ state, cfg, hasSchedule, onNameTap, onOpenAdmin, stage }: { state: DisplayState; cfg: AppConfig; hasSchedule: boolean; onNameTap: () => void; onOpenAdmin: () => void; stage: { w: number; h: number } }) {
   const d = cfg.display;
-  const timesW = Math.round(stage.w * (d.screenLayout === 'third' ? 1 / 3 : 1 / 2));
-  // the times column is the phone layout, scaled to fill its share of the screen
-  const baseW = Math.min(800, Math.max(420, Math.round(timesW * 880 / stage.h)));
-  const scale = timesW / baseW;
+  const half = d.screenLayout === 'half';
+  const timesW = Math.round(stage.w * (half ? 1 / 2 : 1 / 3));
   const cd = state.countdown;
   const focus = !!cd && d.countdownFocus;
-  return (
-    <div className={`split split--${d.layoutSide} ${focus ? 'is-countdown' : ''}`} style={{ gridTemplateColumns: d.layoutSide === 'right' ? `${timesW}px 1fr` : `1fr ${timesW}px` }}>
-      <div className="split-times" style={{ order: d.layoutSide === 'right' ? 0 : 1 }}>
-        <div className="split-times-inner" style={{ width: baseW, height: Math.round(stage.h / scale), transform: `scale(${scale})` }}>
-          <MobileView state={state} cfg={cfg} hasSchedule={hasSchedule} controls={null} onNameTap={onNameTap} fs={false} embedded />
-        </div>
+  const right = d.layoutSide === 'right';
+
+  let times: React.ReactNode;
+  if (half) {
+    // half: the full TV design (arch, clock, adhan / iqamah panels) — the same layout, smaller
+    const scale = timesW / STAGE_W;
+    const innerH = Math.min(1600, Math.round(stage.h * 0.9 / scale));
+    times = (
+      <div className="split-times-inner split-times-inner--tv" style={{ width: STAGE_W, height: innerH, transform: `scale(${scale})`, top: Math.round((stage.h - innerH * scale) / 2) }}>
+        <TvView state={state} cfg={cfg} hasSchedule={hasSchedule} onOpenAdmin={onOpenAdmin} onNameTap={onNameTap} />
       </div>
-      <div className="split-side" style={{ order: d.layoutSide === 'right' ? 1 : 0 }}>
-        {cd ? (
+    );
+  } else {
+    // third: the compact column layout, scaled to fill its share of the screen
+    const baseW = Math.min(800, Math.max(420, Math.round(timesW * 880 / stage.h)));
+    const scale = timesW / baseW;
+    times = (
+      <div className="split-times-inner" style={{ width: baseW, height: Math.round(stage.h / scale), transform: `scale(${scale})` }}>
+        <MobileView state={state} cfg={cfg} hasSchedule={hasSchedule} controls={null} onNameTap={onNameTap} fs={false} embedded />
+      </div>
+    );
+  }
+
+  return (
+    <div className={`split split--${d.layoutSide} split--${d.screenLayout} ${focus ? 'is-countdown' : ''}`} style={{ gridTemplateColumns: right ? `${timesW}px 1fr` : `1fr ${timesW}px` }}>
+      <div className="split-times" style={{ order: right ? 0 : 1 }}>{times}</div>
+      <div className="split-side" style={{ order: right ? 1 : 0 }}>
+        {cd && !half ? (
           <div className={`split-countdown ${cd.seconds <= 10 ? 'is-final' : ''}`} role="timer">
             <div className="split-count-label">{eventPhrase(cd.event)} بعد</div>
             <StableDigits className="split-count-digits" text={remainingText(state, cd.event, d.digits)} />
             <div className="split-count-unit">ثانية</div>
           </div>
-        ) : <SplitAdhkar state={state} cfg={cfg} half={d.screenLayout === 'half'} />}
+        ) : <SplitAdhkar state={state} cfg={cfg} half={half} />}
       </div>
     </div>
   );

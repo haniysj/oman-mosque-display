@@ -70,6 +70,8 @@ export interface EngineInput {
 export const COUNTDOWN_WINDOW_MS = 60_000;
 /** The black screen starts this long after the iqamah (its end time is unchanged). */
 export const QUIET_DELAY_MS = 5_000;
+/** Minimum time a prayer is considered in progress after its iqamah (for the «القادمة» tag). */
+export const PRAYER_MINUTES = 10;
 
 const NAMES: Record<PrayerKey, string> = { fajr: 'الفجر', dhuhr: 'الظهر', asr: 'العصر', maghrib: 'المغرب', isha: 'العشاء' };
 
@@ -152,8 +154,14 @@ export function computeState(input: EngineInput): DisplayState {
   let currentIqamahSlot: SlotKey | null = null;
   if (tPlan) {
     currentIqamahSlot = PRAYER_KEYS.find((s) => tPlan.adhan[s] <= now && now < tPlan.iqamah[s].at) ?? null;
-    // "Next prayer" is only marked once the current prayer's iqamah has passed.
-    nextPrayerSlot = currentIqamahSlot ? null : PRAYER_KEYS.find((s) => tPlan.adhan[s] > now) ?? null;
+    // "Next prayer" is only marked once the current prayer is over: from its adhan until the end of
+    // its post-iqamah sequence (black screen + adhkar), or iqamah + PRAYER_MINUTES when there is none.
+    const busy = PRAYER_KEYS.some((s) => {
+      const seq = sequenceFor(tPlan, s, input);
+      const end = seq ? Math.max(seq.adhkarEnd, tPlan.iqamah[s].at + PRAYER_MINUTES * MINUTE) : tPlan.iqamah[s].at + PRAYER_MINUTES * MINUTE;
+      return tPlan.adhan[s] <= now && now < end;
+    }) || (!!yPlan && (() => { const seq = sequenceFor(yPlan, 'isha', input); return !!seq && now < seq.adhkarEnd; })());
+    nextPrayerSlot = busy ? null : PRAYER_KEYS.find((s) => tPlan.adhan[s] > now) ?? null;
   }
 
   // Countdown (≤ 60 s) — choose the earliest qualifying event

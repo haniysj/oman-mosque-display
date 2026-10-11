@@ -173,18 +173,19 @@ for (const [name, w, h, ua, isMobile] of [['name-center-tv', 1920, 1080, TV_UA, 
 }
 
 // Split screen: a third / a half for the prayer times, the rest shows adhkar (countdown replaces them)
-for (const [layout, side, t, name] of [['third', 'right', '15:20:07', 'split-third-right'], ['half', 'left', '15:20:07', 'split-half-left'], ['third', 'right', '15:33:30', 'split-third-countdown']]) {
+for (const [layout, side, t, name] of [['third', 'right', '15:20:07', 'split-third-right'], ['half', 'left', '15:20:07', 'split-half-left'], ['third', 'right', '15:33:30', 'split-third-countdown'], ['half', 'right', '15:33:30', 'split-half-countdown']]) {
   await shot(browser, { name, w: 1920, h: 1080, at: muscat(SAT, t), ua: TV_UA,
     mutate: (b) => { b.config.display.screenLayout = layout; b.config.display.layoutSide = side; return b; },
     check: async (p) => {
       const times = await p.locator('.split-times').boundingBox();
       const want = layout === 'third' ? 640 : 960;
       ok(`${name}: times take ${layout} on the ${side}`, !!times && Math.abs(times.width - want) <= 3 && (side === 'right' ? times.x > 900 : times.x < 10), times ? `${Math.round(times.x)}+${Math.round(times.width)}` : 'none');
-      ok(`${name}: all prayers listed`, (await p.locator('.split-times .m-table tbody tr').count()) === 6);
-      if (t === '15:33:30') ok(`${name}: countdown replaces adhkar`, (await p.locator('.split-countdown').count()) === 1 && (await p.locator('.split-adhkar').count()) === 0);
+      if (layout === 'third') ok(`${name}: all prayers listed`, (await p.locator('.split-times .m-table tbody tr').count()) === 6);
+      else ok(`${name}: half uses the full TV design (arch + both panels)`, (await p.locator('.split-times .mihrab').count()) === 1 && (await p.locator('.split-times .panel .row').count()) === 12);
+      if (t === '15:33:30' && layout === 'third') ok(`${name}: countdown replaces adhkar`, (await p.locator('.split-countdown').count()) === 1 && (await p.locator('.split-adhkar').count()) === 0);
+      else if (t === '15:33:30') ok(`${name}: countdown in the arch, adhkar dimmed`, (await p.locator('.split-times .countdown').count()) === 1 && (await p.locator('.split.is-countdown').count()) === 1);
       else ok(`${name}: adhkar shown`, ((await p.locator('.split-adhkar-text').textContent()) || '').length > 10);
-      const inner = await p.locator('.split-times-inner .m-root').evaluate((e) => e.scrollHeight <= e.clientHeight + 2);
-      ok(`${name}: times column fits without scrolling`, inner);
+      if (layout === 'third') ok(`${name}: times column fits without scrolling`, await p.locator('.split-times-inner .m-root').evaluate((e) => e.scrollHeight <= e.clientHeight + 2));
     } });
 }
 
