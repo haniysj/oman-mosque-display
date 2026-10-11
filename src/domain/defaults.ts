@@ -24,6 +24,7 @@ export function defaultConfig(): AppConfig {
       },
       weekdayRules: {},
       dateExceptions: [],
+      locks: {},
     },
     friday: {
       enabled: true,

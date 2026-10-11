@@ -11,7 +11,7 @@ import { Badge, Btn, Card, Field, Grid, Note, NumberInput, Select, TextInput, Ti
 import { IconPlus, IconRestore, IconTrash } from '../common/icons';
 
 const P_AR: Record<PrayerKey, string> = { fajr: 'الفجر', dhuhr: 'الظهر', asr: 'العصر', maghrib: 'المغرب', isha: 'العشاء' };
-const HOW_AR: Record<string, string> = { exception: 'استثناء بتاريخ', record: 'من الجدول', weekday: 'قاعدة يوم', fixed: 'وقت ثابت', delay: 'بعد الأذان', friday: 'إعداد الجمعة', 'friday-fallback': 'مؤقت (الجمعة غير مضبوطة)' };
+const HOW_AR: Record<string, string> = { exception: 'استثناء بتاريخ', lock: 'مثبّت', record: 'من الجدول', weekday: 'قاعدة يوم', fixed: 'وقت ثابت', delay: 'بعد الأذان', friday: 'إعداد الجمعة', 'friday-fallback': 'مؤقت (الجمعة غير مضبوطة)' };
 
 function RuleEditor({ rule, onChange }: { rule: IqamahRule; onChange: (r: IqamahRule) => void }) {
   return (
@@ -77,12 +77,27 @@ export function IqamahSection() {
       <Card title="الإقامة اليومية" actions={<Btn small kind="ghost" onClick={() => set((c) => { c.iqamah.rules = defaultConfig().iqamah.rules; })}><IconRestore size={16} />استعادة الافتراضي</Btn>}>
         <p className="m-0 mb-3 text-[13px] text-muted">الإقامة = وقت الأذان + التأخير، أو وقت ثابت. القيم الافتراضية للعرض فقط: {PRAYER_KEYS.map((k) => `${P_AR[k]} ${DEFAULT_IQAMAH_DELAYS[k]}`).join('، ')} دقيقة.</p>
         <div className="flex flex-col gap-2">
-          {PRAYER_KEYS.map((k) => (
-            <div key={k} className="grid grid-cols-1 items-center gap-2 rounded-xl border border-line p-2 sm:grid-cols-[120px_1fr]">
-              <b className="text-[15px] text-ink">{P_AR[k]}</b>
-              <RuleEditor rule={iq.rules[k]} onChange={(r) => set((c) => { c.iqamah.rules[k] = r; })} />
-            </div>
-          ))}
+          {PRAYER_KEYS.map((k) => {
+            const lock = iq.locks?.[k];
+            const locked = !!lock?.enabled;
+            return (
+              <div key={k} className={`grid grid-cols-1 items-start gap-2 rounded-xl border p-2 sm:grid-cols-[170px_1fr] ${locked ? 'border-teal/50 bg-teal-soft/30' : 'border-line'}`}>
+                <div className="flex flex-col gap-1.5">
+                  <b className="text-[15px] text-ink">{P_AR[k]}</b>
+                  <label className="flex cursor-pointer items-center gap-1.5 text-[13px] font-bold text-ink2">
+                    <input type="checkbox" className="accent-[#1F7A6D]" checked={locked}
+                      onChange={(e) => set((c) => { c.iqamah.locks = { ...(c.iqamah.locks ?? {}), [k]: { enabled: e.target.checked, time: c.iqamah.locks?.[k]?.time || '' } }; })} />
+                    تثبيت موعد الإقامة
+                  </label>
+                  {locked && <TimeInput value={lock?.time ?? ''} onCommit={(time) => set((c) => { c.iqamah.locks = { ...(c.iqamah.locks ?? {}), [k]: { enabled: true, time } }; })} />}
+                </div>
+                <div className={locked ? 'pointer-events-none opacity-40' : ''} aria-disabled={locked}>
+                  <RuleEditor rule={iq.rules[k]} onChange={(r) => set((c) => { c.iqamah.rules[k] = r; })} />
+                  {locked && <p className="m-0 mt-1 text-[12px] text-ink2">موقوف أثناء التثبيت — الإقامة {lock?.time ? `ثابتة على ${lock.time}` : 'بانتظار اختيار الوقت'} كل يوم{k === 'dhuhr' ? ' (الجمعة لها إعداد مستقل)' : ''}.</p>}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </Card>
 

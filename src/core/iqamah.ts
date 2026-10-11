@@ -3,6 +3,7 @@
  *
  * Priority for each prayer's iqamah on a given date (highest first):
  *   1. Date-specific exception set in the admin panel
+ *   1b. Frozen (locked) iqamah time for the prayer
  *   2. Iqamah override stored in the timetable record for that date
  *   3. Weekday rule (e.g. a different Fajr iqamah on Thursdays)
  *   4. Standard rule: adhan + delay, or a fixed clock time
@@ -17,7 +18,7 @@ export type SlotKey = PrayerKey; // dhuhr slot becomes Jumu'ah on Fridays
 
 export interface IqamahResult {
   at: number;
-  how: 'exception' | 'record' | 'weekday' | 'fixed' | 'delay' | 'friday' | 'friday-fallback';
+  how: 'exception' | 'lock' | 'record' | 'weekday' | 'fixed' | 'delay' | 'friday' | 'friday-fallback';
 }
 
 export interface DayPlan {
@@ -74,6 +75,15 @@ export function buildDayPlan(rec: DailyPrayerTimes, cfg: AppConfig): DayPlan {
     const exMin = ex ? parseHHMM(ex.time) : null;
     if (exMin !== null && exMin >= adhanMin) { iqamah[p] = { at: muscatTimestamp(date, exMin), how: 'exception' }; continue; }
     if (ex) warnings.push(`استثناء إقامة ${label} بتاريخ ${date} غير صالح أو قبل الأذان — تم تجاهله`);
+
+    // 1b. frozen iqamah (daily lock) — not on Friday's Jumu'ah slot, which has its own settings
+    const lock = slot === p ? cfg.iqamah.locks?.[p] : undefined;
+    if (lock?.enabled) {
+      let lm = parseHHMM(lock.time);
+      if (lm !== null && lm < adhanMin && adhanMin >= 20 * 60 && lm < 3 * 60) lm += 1440;
+      if (lm !== null && lm >= adhanMin) { iqamah[p] = { at: muscatTimestamp(date, lm), how: 'lock' }; continue; }
+      warnings.push(lm === null ? `وقت تثبيت إقامة ${label} غير صالح — طُبّقت القاعدة المعتادة` : `تثبيت إقامة ${label} (${lock.time}) قبل وقت الأذان في ${date} — طُبّقت القاعدة المعتادة لهذا اليوم`);
+    }
 
     // 2. timetable record override
     const recMin = parseHHMM(rec.iqamah?.[slot]);

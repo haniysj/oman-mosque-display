@@ -79,6 +79,9 @@ export interface IqamahConfiguration {
   weekdayRules: Partial<Record<number, Partial<Record<PrayerKey, IqamahRule>>>>;
   /** Date-specific exceptions (highest priority). */
   dateExceptions: { id: string; date: string; prayer: PrayerKey | 'jumuah'; time: string; note?: string }[];
+  /** Frozen iqamah: a prayer's iqamah held at one clock time every day (overrides the daily and
+   *  weekday rules and timetable overrides; date exceptions still win). Not shown on the screen. */
+  locks: Partial<Record<PrayerKey, { enabled: boolean; time: string }>>;
 }
 
 export interface FridayConfiguration {

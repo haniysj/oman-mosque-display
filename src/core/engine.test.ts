@@ -52,6 +52,33 @@ describe('3. missing schedule data', () => {
   });
 });
 
+describe('4b. frozen (locked) iqamah', () => {
+  it('holds the iqamah at the locked time, overriding weekday rules and timetable overrides', () => {
+    const c = cfg();
+    c.iqamah.weekdayRules[6] = { asr: { mode: 'delay', delay: 25, fixedTime: '' } };
+    c.iqamah.locks = { asr: { enabled: true, time: '15:45' } };
+    const p = buildDayPlan(rec(SAT, { iqamah: { asr: '15:40' } }), c);
+    expect(p.iqamah.asr.at).toBe(at(SAT, '15:45'));
+    expect(p.iqamah.asr.how).toBe('lock');
+    expect(p.iqamah.fajr.how).not.toBe('lock'); // other prayers unaffected
+  });
+  it('a date exception still wins; a disabled lock is ignored', () => {
+    const c = cfg();
+    c.iqamah.locks = { asr: { enabled: true, time: '15:45' } };
+    c.iqamah.dateExceptions = [{ id: 'x', date: SAT, prayer: 'asr', time: '15:50' }];
+    expect(buildDayPlan(rec(SAT), c).iqamah.asr.at).toBe(at(SAT, '15:50'));
+    const c2 = cfg(); c2.iqamah.locks = { asr: { enabled: false, time: '15:45' } };
+    expect(buildDayPlan(rec(SAT), c2).iqamah.asr.how).not.toBe('lock');
+  });
+  it('a lock before the adhan falls back to the usual rule with an admin warning', () => {
+    const c = cfg();
+    c.iqamah.locks = { asr: { enabled: true, time: '14:00' } };
+    const p = buildDayPlan(rec(SAT), c);
+    expect(p.iqamah.asr.how).toBe('delay');
+    expect(p.warnings.join(' ')).toContain('تثبيت إقامة');
+  });
+});
+
 describe('4. iqamah delay calculation', () => {
   it('iqamah = adhan + configured delay, independently per prayer', () => {
     const c = cfg();

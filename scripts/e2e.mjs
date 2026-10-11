@@ -144,6 +144,31 @@ for (const tab of ['timetable', 'iqamah', 'friday', 'quiet', 'diagnostics']) {
   }
 }
 
+// Frozen iqamah: admin locks Asr at 15:45 → the screen shows 3:45 with no marker
+{
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, serviceWorkers: 'block' });
+  const page = await ctx.newPage();
+  const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+  await page.clock.install({ time: muscat(SAT, '15:20:00') });
+  await seed(page);
+  await page.evaluate(() => sessionStorage.setItem('omd-admin-tab', 'iqamah'));
+  await page.goto(BASE + '/#/admin'); await page.reload(); await page.clock.runFor(800);
+  const daily = page.getByText('الإقامة اليومية').locator('xpath=ancestor::section[1]');
+  const asrBox = daily.locator('div.grid', { has: page.getByText('العصر', { exact: true }) }).first();
+  await asrBox.getByText('تثبيت موعد الإقامة').click(); await page.clock.runFor(300);
+  await asrBox.locator('input[type=time]').fill('15:45'); await page.clock.runFor(300);
+  await page.screenshot({ path: `${OUT}/admin-iqamah-lock.png`, fullPage: true });
+  const prev = await page.getByText('معاينة').first().locator('xpath=ancestor::section[1]').textContent();
+  ok('lock: admin preview shows 3:45 مثبّت', prev.includes('3:45') && prev.includes('مثبّت'), prev.slice(0, 200));
+  const cfgSaved = await page.evaluate(async () => { const db = await new Promise((r) => { const q = indexedDB.open('oman-mosque-display', 1); q.onsuccess = () => r(q.result); }); return new Promise((r) => { const g = db.transaction('kv').objectStore('kv').get('config'); g.onsuccess = () => r(g.result.iqamah.locks); }); });
+  ok('lock: saved in settings', cfgSaved?.asr?.enabled === true && cfgSaved?.asr?.time === '15:45', JSON.stringify(cfgSaved));
+  await page.goto(BASE + '/'); await page.clock.runFor(1500);
+  const iqRows = await page.locator('.panel').nth(1).textContent();
+  ok('lock: screen shows Asr iqamah 3:45, no lock marker', iqRows.includes('3:45') && !iqRows.includes('مثبت') && !iqRows.includes('مثبّت'), iqRows);
+  ok('lock: no JS errors', errs.length === 0, errs.join('|'));
+  await ctx.close();
+}
+
 // Labels: iqamah rows show only the prayer name; footer shows «أذان صلاة …» and «إقامة صلاة …»
 await shot(browser, { name: 'labels', w: 1920, h: 1080, at: muscat(SAT, '15:20:07'), ua: TV_UA,
   check: async (p) => {
