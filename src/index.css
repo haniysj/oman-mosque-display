@@ -316,3 +316,6 @@ button { font-family: inherit; }
 .split-countdown.is-final .split-count-digits { color: var(--cd-final); animation: cd-pulse 1s ease-in-out infinite; }
 .split-count-unit { font-size: 42px; color: var(--cd); opacity: .85; }
 @media (prefers-reduced-motion: reduce) { .split-adhkar-body { animation: none; } .split-count-digits { animation: none !important; } }
+/* half split: a wider arch (≈ 40 % of the design) and tighter adhan / iqamah panels */
+.split--half .tv { padding: 0 48px; }
+.split--half .tv-main { grid-template-columns: 470px 1fr 470px; gap: 48px; }
