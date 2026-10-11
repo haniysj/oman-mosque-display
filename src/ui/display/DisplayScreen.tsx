@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { AppConfig, PrayerKey, PrayerSchedule } from '../../domain/types';
 import { PRAYER_KEYS } from '../../domain/types';
-import type { DisplayState } from '../../core/engine';
+import { adhkarAt, type DisplayState } from '../../core/engine';
 import { formatClock, formatGregorianAr, WEEKDAYS_AR } from '../../core/time';
 import { formatHijriAr, toHijri } from '../../core/hijri';
 import { coverage } from '../../core/timetable';
@@ -187,7 +187,9 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
         <Stage vpW={vp.w} vpH={vp.h} {...stageFor(vp.w, vp.h)}>
           {state.phase === 'adhkar'
             ? <AdhkarScreen state={state} cfg={cfg} />
-            : <TvView state={state} cfg={cfg} hasSchedule={!!schedule} onOpenAdmin={onOpenAdmin} onNameTap={onNameTap} />}
+            : cfg.display.screenLayout !== 'full'
+              ? <SplitView state={state} cfg={cfg} hasSchedule={!!schedule} onNameTap={onNameTap} stage={stageFor(vp.w, vp.h)} />
+              : <TvView state={state} cfg={cfg} hasSchedule={!!schedule} onOpenAdmin={onOpenAdmin} onNameTap={onNameTap} />}
           {controlBar}
         </Stage>
       )}
@@ -383,9 +385,58 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin, onNameTap }: { state: Di
   );
 }
 
+// ------------------------------------------------------------------------------ Split screen (TV / desktop)
+
+/** Prayer times on a third or a half of the screen; the rest shows rotating adhkar (or the countdown). */
+function SplitView({ state, cfg, hasSchedule, onNameTap, stage }: { state: DisplayState; cfg: AppConfig; hasSchedule: boolean; onNameTap: () => void; stage: { w: number; h: number } }) {
+  const d = cfg.display;
+  const timesW = Math.round(stage.w * (d.screenLayout === 'third' ? 1 / 3 : 1 / 2));
+  // the times column is the phone layout, scaled to fill its share of the screen
+  const baseW = Math.min(800, Math.max(420, Math.round(timesW * 880 / stage.h)));
+  const scale = timesW / baseW;
+  const cd = state.countdown;
+  const focus = !!cd && d.countdownFocus;
+  return (
+    <div className={`split split--${d.layoutSide} ${focus ? 'is-countdown' : ''}`} style={{ gridTemplateColumns: d.layoutSide === 'right' ? `${timesW}px 1fr` : `1fr ${timesW}px` }}>
+      <div className="split-times" style={{ order: d.layoutSide === 'right' ? 0 : 1 }}>
+        <div className="split-times-inner" style={{ width: baseW, height: Math.round(stage.h / scale), transform: `scale(${scale})` }}>
+          <MobileView state={state} cfg={cfg} hasSchedule={hasSchedule} controls={null} onNameTap={onNameTap} fs={false} embedded />
+        </div>
+      </div>
+      <div className="split-side" style={{ order: d.layoutSide === 'right' ? 1 : 0 }}>
+        {cd ? (
+          <div className={`split-countdown ${cd.seconds <= 10 ? 'is-final' : ''}`} role="timer">
+            <div className="split-count-label">{eventPhrase(cd.event)} بعد</div>
+            <StableDigits className="split-count-digits" text={remainingText(state, cd.event, d.digits)} />
+            <div className="split-count-unit">ثانية</div>
+          </div>
+        ) : <SplitAdhkar state={state} cfg={cfg} half={d.screenLayout === 'half'} />}
+      </div>
+    </div>
+  );
+}
+
+function SplitAdhkar({ state, cfg, half }: { state: DisplayState; cfg: AppConfig; half: boolean }) {
+  const adhkar = useApp((s) => s.adhkar);
+  const a = adhkarAt(adhkar.map((x) => ({ ...x, seconds: cfg.display.splitAdhkarSeconds })), cfg.display.splitAdhkarSeconds, 0, state.now);
+  const item = a.item;
+  if (!item) return <div className="split-adhkar split-adhkar--empty">لا توجد أذكار مفعّلة — أضفها من الإعدادات ← الأذكار</div>;
+  const len = item.text.length;
+  const base = half ? (len > 300 ? 46 : len > 160 ? 56 : 68) : (len > 300 ? 54 : len > 160 ? 66 : 80);
+  return (
+    <div className="split-adhkar" role="region" aria-label="الأذكار">
+      <div className="split-adhkar-title">{item.category || 'أذكار'}</div>
+      <div key={item.id} className="split-adhkar-body">
+        <FitText text={item.text} base={base} min={30} lines={half ? 9 : 8} className="split-adhkar-text" />
+        {item.source && <div className="split-adhkar-source">{item.source}</div>}
+      </div>
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------------------ Phone / portrait
 
-function MobileView({ state, cfg, hasSchedule, controls, onNameTap, fs }: { state: DisplayState; cfg: AppConfig; hasSchedule: boolean; controls: React.ReactNode; onNameTap: () => void; fs: boolean }) {
+function MobileView({ state, cfg, hasSchedule, controls, onNameTap, fs, embedded = false }: { state: DisplayState; cfg: AppConfig; hasSchedule: boolean; controls: React.ReactNode; onNameTap: () => void; fs: boolean; embedded?: boolean }) {
   const mSchedule = useApp((s) => s.schedule);
   const d = cfg.display;
   const { hijri, greg, weekday } = useDates(state, cfg);
@@ -404,14 +455,14 @@ function MobileView({ state, cfg, hasSchedule, controls, onNameTap, fs }: { stat
           {d.showEnglishName && cfg.mosque.nameEn && <div className="m-name-en" dir="ltr">{cfg.mosque.nameEn}</div>}
         </div>
         <div className="m-actions">
-          {!fs && <ReminderBell />}
+          {!fs && !embedded && <ReminderBell />}
           {controls}
         </div>
       </header>
       <SourceBadge kind={todaySourceBadge(mSchedule, state.today, cfg)} />
 
       <section className="m-clock" aria-live="polite">
-        {cd ? (
+        {cd && !embedded ? (
           <div className={`m-count ${cd.seconds <= 10 ? 'is-final' : ''}`} role="timer">
             <div className="m-count-label">{eventPhrase(cd.event)} بعد</div>
             <StableDigits className="m-count-digits" text={remainingText(state, cd.event, d.digits)} />

@@ -162,6 +162,19 @@ export function DisplaySection() {
         </div>
       </Card>
 
+      <Card title="تقسيم الشاشة (التلفاز والحاسوب)">
+        <Grid>
+          <Field label="ما يُعرض على الشاشة"><Select value={d.screenLayout} onChange={(v) => set((c) => { c.display.screenLayout = v; })} options={[
+            { value: 'full', label: 'الشاشة كاملة للمواقيت والإقامة' },
+            { value: 'third', label: 'ثلث للمواقيت — والباقي للأذكار' },
+            { value: 'half', label: 'نصف للمواقيت — والنصف الآخر للأذكار' },
+          ]} /></Field>
+          {d.screenLayout !== 'full' && <Field label="جهة المواقيت"><Select value={d.layoutSide} onChange={(v) => set((c) => { c.display.layoutSide = v; })} options={[{ value: 'right', label: 'يمين الشاشة' }, { value: 'left', label: 'يسار الشاشة' }]} /></Field>}
+          {d.screenLayout !== 'full' && <Field label="مدة عرض كل ذكر"><NumberInput value={d.splitAdhkarSeconds} min={8} max={120} suffix="ثانية" onCommit={(v) => set((c) => { c.display.splitAdhkarSeconds = v; })} /></Field>}
+        </Grid>
+        <p className="m-0 mt-2 text-[12px] text-muted">تُعرض الأذكار المفعّلة من قسم «الأذكار» بالتناوب. في آخر 60 ثانية قبل الأذان أو الإقامة يحلّ العد التنازلي محل الأذكار. الهاتف والشاشات العمودية لا تتأثر.</p>
+      </Card>
+
       <Card title="التشغيل على الشاشة">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <Toggle checked={d.presentation} onChange={(v) => set((c) => { c.display.presentation = v; })} label="وضع العرض (Kiosk)" hint="يخفي جميع الأزرار. Esc أو زر الرجوع يُظهرها، و P يبدّل الوضع. بجهاز التحكم: OK أو الأسهم تُظهر الأزرار مؤقتاً." />

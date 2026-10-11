@@ -286,3 +286,30 @@ button { font-family: inherit; }
 .m-head.m-head--center { flex-direction: column-reverse; align-items: stretch; gap: 6px; }
 .m-head.m-head--center .m-actions { align-self: flex-end; }
 .m-head.m-head--center .m-names, .m-head.m-head--center .m-name, .m-head.m-head--center .m-name-en { text-align: center; }
+
+/* ------------------------------------------------------------------ split screen (TV / desktop) */
+.split { position: absolute; inset: 0; display: grid; }
+.split-times { position: relative; overflow: hidden; min-width: 0; }
+.split--right .split-times { border-left: 2px solid var(--line-d); }
+.split--left .split-times { border-right: 2px solid var(--line-d); }
+.split-times-inner { position: absolute; top: 0; }
+.split--right .split-times-inner { right: 0; transform-origin: top right; }
+.split--left .split-times-inner { left: 0; transform-origin: top left; }
+.split-times-inner .m-root { height: 100%; overflow: hidden; }
+.split-times-inner .m-table { flex: 1 1 auto; }
+.split-times .source-badge { position: static; align-self: flex-start; font-size: 12px; padding: 3px 10px; }
+.split-side { position: relative; min-width: 0; display: flex; align-items: center; justify-content: center; padding: 56px 72px; }
+.split-adhkar { width: 100%; height: 100%; display: flex; flex-direction: column; }
+.split-adhkar-title { font-size: 40px; font-weight: 700; color: var(--gold); text-align: center; padding-bottom: 22px; border-bottom: 2px solid var(--line-d); }
+.split-adhkar-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 30px; text-align: center; animation: dhikrIn 1.2s ease both; }
+.split-adhkar-text { font-family: 'Amiri', serif; font-weight: 700; color: var(--text); white-space: pre-line; text-wrap: balance; width: 100%; }
+.split-adhkar-source { font-size: 28px; color: var(--gold-l); font-weight: 600; }
+.split-adhkar--empty { font-size: 30px; color: var(--muted-d); text-align: center; align-items: center; justify-content: center; }
+.split-countdown { text-align: center; }
+.split-count-label { font-size: 64px; font-weight: 800; color: var(--cd); }
+.split-count-digits { display: block; white-space: nowrap; font-size: 300px; font-weight: 800; line-height: 1; direction: ltr; color: var(--cd); text-shadow: 0 0 44px var(--cd-glow), 0 0 12px var(--cd-glow); }
+.split-count-digits .digit { display: inline-block; width: .58em; text-align: center; }
+.split-count-digits .colon { display: inline-block; width: .3em; }
+.split-countdown.is-final .split-count-digits { color: var(--cd-final); animation: cd-pulse 1s ease-in-out infinite; }
+.split-count-unit { font-size: 42px; color: var(--cd); opacity: .85; }
+@media (prefers-reduced-motion: reduce) { .split-adhkar-body { animation: none; } .split-count-digits { animation: none !important; } }
