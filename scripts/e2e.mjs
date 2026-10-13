@@ -235,6 +235,18 @@ for (const [layout, side, t, name] of [['third', 'right', '15:20:07', 'split-thi
     } });
 }
 
+// Badges: «الآن» on the adhan row until 1 min before the iqamah (iqamah row «القادمة»), then «الآن» on
+// the iqamah row; «القادمة» on the next prayer 1 min after the iqamah (Asr: adhan 15:14, iqamah 15:34)
+for (const [t, adhanAsr, iqAsr, adhanMaghrib] of [['15:20:00', 'الآن', 'القادمة', ''], ['15:33:30', '', 'الآن', ''], ['15:35:05', '', '', 'القادمة']]) {
+  await shot(browser, { name: `badges-${t.replace(/:/g, '')}`, w: 1920, h: 1080, at: muscat(SAT, t), ua: TV_UA,
+    mutate: (b) => { b.config.quiet.enabled = false; b.config.adhkar.enabled = false; return b; }, // keep the panels visible after the iqamah
+    check: async (p) => {
+      const rowText = async (panel, name) => (await p.locator('.panel').nth(panel).locator('.row', { has: p.locator('.row-name', { hasText: name }) }).first().locator('.row-name').textContent()).replace(name, '').trim();
+      const a = await rowText(0, 'العصر'), i = await rowText(1, 'العصر'), m = await rowText(0, 'المغرب');
+      ok(`badges ${t}: adhan «${adhanAsr || '—'}», iqamah «${iqAsr || '—'}», maghrib «${adhanMaghrib || '—'}»`, a === adhanAsr && i === iqAsr && m === adhanMaghrib, `${a}|${i}|${m}`);
+    } });
+}
+
 // Offline: install SW, go offline, reload → still renders from cache + IndexedDB
 {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });

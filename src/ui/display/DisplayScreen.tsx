@@ -267,9 +267,10 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin, onNameTap }: { state: Di
               );
             }
             const next = state.nextPrayerSlot === k;
+            const nowA = state.adhanNowSlot === k;
             return (
-              <li key={k} className={`row ${next ? 'is-next' : ''}`}>
-                <span className="row-name">{prayerRowLabel(k, state, cfg)}{next && <Pill tone="gold">القادمة</Pill>}</span>
+              <li key={k} className={`row ${next ? 'is-next' : ''} ${nowA ? 'is-current' : ''}`}>
+                <span className="row-name">{prayerRowLabel(k, state, cfg)}{next && <Pill tone="gold">القادمة</Pill>}{nowA && <Pill tone="ivory">الآن</Pill>}</span>
                 <TimeText ms={plan.adhan[k]} cfg={cfg} className="row-time" />
               </li>
             );
@@ -285,10 +286,11 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin, onNameTap }: { state: Di
       {plan ? (
         <ul className="rows">
           {PRAYER_KEYS.flatMap((k) => {
-            const cur = state.currentIqamahSlot === k;
+            const nowI = state.iqamahNowSlot === k;
+            const nextI = state.iqamahNextSlot === k;
             const row = (
-              <li key={k} className={`row ${cur ? 'is-current' : ''}`}>
-                <span className="row-name">{iqamahRowLabel(k, state, cfg)}{cur && <Pill tone="ivory">الآن</Pill>}</span>
+              <li key={k} className={`row ${nowI ? 'is-current' : nextI ? 'is-next' : ''}`}>
+                <span className="row-name">{iqamahRowLabel(k, state, cfg)}{nextI && <Pill tone="gold">القادمة</Pill>}{nowI && <Pill tone="ivory">الآن</Pill>}</span>
                 <TimeText ms={plan.iqamah[k].at} cfg={cfg} className="row-time" />
               </li>
             );
@@ -508,12 +510,12 @@ function MobileView({ state, cfg, hasSchedule, controls, onNameTap, fs, embedded
           <tbody>
             {PRAYER_KEYS.flatMap((k) => {
               const row = (
-                <tr key={k} className={`${state.nextPrayerSlot === k ? 'is-next' : ''} ${state.currentIqamahSlot === k ? 'is-current' : ''}`}>
+                <tr key={k} className={`${state.nextPrayerSlot === k ? 'is-next' : ''} ${state.adhanNowSlot === k || state.iqamahNowSlot === k ? 'is-current' : ''}`}>
                   <td><TimeText ms={plan.adhan[k]} cfg={cfg} /></td>
                   <th scope="row" className="m-col-name">
                     <span className="m-pname">{prayerRowLabel(k, state, cfg)}</span>
                     {state.nextPrayerSlot === k && <span className="m-tag">القادمة</span>}
-                    {state.currentIqamahSlot === k && <span className="m-tag m-tag--now">الآن</span>}
+                    {(state.adhanNowSlot === k || state.iqamahNowSlot === k) && <span className="m-tag m-tag--now">{state.iqamahNowSlot === k ? 'الإقامة الآن' : 'الآن'}</span>}
                   </th>
                   <td><TimeText ms={plan.iqamah[k].at} cfg={cfg} /></td>
                 </tr>

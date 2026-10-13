@@ -161,11 +161,17 @@ describe('6–7. countdown', () => {
     expect(st.countdown).toBeNull();
     expect(st.nextAdhan?.slot).toBe('maghrib');
     expect(st.currentIqamahSlot).toBe('asr');
-    expect(st.nextPrayerSlot).toBeNull(); // "next" tag waits until the Asr iqamah has passed
-    // …and until the prayer is over (black screen + adhkar after the iqamah), then Maghrib is «next»
-    expect(computeState(input(at(SAT, '15:30'))).nextPrayerSlot).toBeNull();
-    expect(computeState(input(at(SAT, '15:39'))).nextPrayerSlot).toBeNull();
-    expect(computeState(input(at(SAT, '15:40'))).nextPrayerSlot).toBe('maghrib');
+    expect(st.nextPrayerSlot).toBeNull(); // "next" tag waits until 1 min after the Asr iqamah (15:30)
+    // badges: adhan «الآن» + iqamah «القادمة» until 15:29, then iqamah «الآن» until 15:31
+    expect([st.adhanNowSlot, st.iqamahNextSlot, st.iqamahNowSlot]).toEqual(['asr', 'asr', null]);
+    const b1 = computeState(input(at(SAT, '15:28', 59)));
+    expect([b1.adhanNowSlot, b1.iqamahNextSlot, b1.iqamahNowSlot]).toEqual(['asr', 'asr', null]);
+    const b2 = computeState(input(at(SAT, '15:29')));
+    expect([b2.adhanNowSlot, b2.iqamahNextSlot, b2.iqamahNowSlot]).toEqual([null, null, 'asr']);
+    expect(computeState(input(at(SAT, '15:30', 59))).iqamahNowSlot).toBe('asr');
+    expect(computeState(input(at(SAT, '15:30', 59))).nextPrayerSlot).toBeNull();
+    const b3 = computeState(input(at(SAT, '15:31')));
+    expect([b3.iqamahNowSlot, b3.nextPrayerSlot]).toEqual([null, 'maghrib']);
   });
 });
 

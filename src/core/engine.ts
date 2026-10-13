@@ -48,6 +48,9 @@ export interface DisplayState {
   nextIqamah: ScheduledEvent | null;
   nextPrayerSlot: SlotKey | null; // highlighted in the prayer-times panel (today only)
   currentIqamahSlot: SlotKey | null; // between adhan and iqamah (highlighted in iqamah panel)
+  adhanNowSlot: SlotKey | null; // «الآن» on the adhan row: adhan → 1 min before the iqamah
+  iqamahNextSlot: SlotKey | null; // «القادمة» on the iqamah row (same window)
+  iqamahNowSlot: SlotKey | null; // «الآن» on the iqamah row: 1 min before → 1 min after the iqamah
   countdown: Countdown | null;
   phase: Phase;
   sequence: Sequence | null;
@@ -70,8 +73,9 @@ export interface EngineInput {
 export const COUNTDOWN_WINDOW_MS = 60_000;
 /** The black screen starts this long after the iqamah (its end time is unchanged). */
 export const QUIET_DELAY_MS = 5_000;
-/** Minimum time a prayer is considered in progress after its iqamah (for the «القادمة» tag). */
-export const PRAYER_MINUTES = 10;
+/** Badge switch: «الآن» moves from the adhan row to the iqamah row this long before the iqamah,
+ *  and «القادمة» moves to the next prayer this long after it. */
+export const BADGE_SWITCH_MS = 60_000;
 
 const NAMES: Record<PrayerKey, string> = { fajr: 'الفجر', dhuhr: 'الظهر', asr: 'العصر', maghrib: 'المغرب', isha: 'العشاء' };
 
@@ -152,15 +156,19 @@ export function computeState(input: EngineInput): DisplayState {
 
   let nextPrayerSlot: SlotKey | null = null;
   let currentIqamahSlot: SlotKey | null = null;
+  let adhanNowSlot: SlotKey | null = null;
+  let iqamahNextSlot: SlotKey | null = null;
+  let iqamahNowSlot: SlotKey | null = null;
   if (tPlan) {
     currentIqamahSlot = PRAYER_KEYS.find((s) => tPlan.adhan[s] <= now && now < tPlan.iqamah[s].at) ?? null;
-    // "Next prayer" is only marked once the current prayer is over: from its adhan until the end of
-    // its post-iqamah sequence (black screen + adhkar), or iqamah + PRAYER_MINUTES when there is none.
-    const busy = PRAYER_KEYS.some((s) => {
-      const seq = sequenceFor(tPlan, s, input);
-      const end = seq ? Math.max(seq.adhkarEnd, tPlan.iqamah[s].at + PRAYER_MINUTES * MINUTE) : tPlan.iqamah[s].at + PRAYER_MINUTES * MINUTE;
-      return tPlan.adhan[s] <= now && now < end;
-    }) || (!!yPlan && (() => { const seq = sequenceFor(yPlan, 'isha', input); return !!seq && now < seq.adhkarEnd; })());
+    // Badges: from the adhan until 1 min before the iqamah → «الآن» on the adhan row and «القادمة»
+    // on the iqamah row; from 1 min before until 1 min after the iqamah → «الآن» on the iqamah row.
+    adhanNowSlot = PRAYER_KEYS.find((s) => tPlan.adhan[s] <= now && now < tPlan.iqamah[s].at - BADGE_SWITCH_MS) ?? null;
+    iqamahNextSlot = adhanNowSlot;
+    iqamahNowSlot = PRAYER_KEYS.find((s) => tPlan.iqamah[s].at - BADGE_SWITCH_MS <= now && now < tPlan.iqamah[s].at + BADGE_SWITCH_MS && tPlan.adhan[s] <= now) ?? null;
+    // «القادمة» on the next adhan: one minute after the current prayer's iqamah
+    const busy = PRAYER_KEYS.some((s) => tPlan.adhan[s] <= now && now < tPlan.iqamah[s].at + BADGE_SWITCH_MS)
+      || (!!yPlan && now < yPlan.iqamah.isha.at + BADGE_SWITCH_MS);
     nextPrayerSlot = busy ? null : PRAYER_KEYS.find((s) => tPlan.adhan[s] > now) ?? null;
   }
 
@@ -211,7 +219,7 @@ export function computeState(input: EngineInput): DisplayState {
 
   return {
     now, parts, today, plan: tPlan, hijriDate,
-    nextAdhan, nextIqamah, nextPrayerSlot, currentIqamahSlot,
+    nextAdhan, nextIqamah, nextPrayerSlot, currentIqamahSlot, adhanNowSlot, iqamahNextSlot, iqamahNowSlot,
     countdown, phase, sequence,
     adhkarItem, adhkarIndex, adhkarCount: enabled.length, adhkarItemEndsAt, suppressedByMobile,
   };
