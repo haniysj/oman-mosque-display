@@ -139,7 +139,18 @@ export function bindingFromUrl(): string | null {
   return q && /^[a-z0-9-]{3,40}$/i.test(q) ? q.toLowerCase() : null;
 }
 
+/** Keeps the address bar on /m/<code> so «Add to Home Screen» installs this mosque's link. */
+function syncUrl(code: string | null) {
+  try {
+    if (/^\/(#.*)?$/.test(location.pathname) || /^\/m\//.test(location.pathname)) {
+      const path = code ? `/m/${code}` : '/';
+      if (location.pathname !== path) history.replaceState(history.state, '', path + location.search + location.hash);
+    }
+  } catch { /* ignore */ }
+}
+
 export async function bindDevice(code: string, name = '') {
+  syncUrl(code);
   const prev = status.binding?.code;
   writeJson(LS_BINDING, { code, name });
   set({ binding: { code, name }, ...(prev !== code ? { mosqueVersion: null, timetableVersion: null, wilayatId: null, lastSyncAt: null } : {}) });
@@ -148,6 +159,7 @@ export async function bindDevice(code: string, name = '') {
 }
 
 export function unbindDevice() {
+  syncUrl(null);
   writeJson(LS_BINDING, null);
   set({ binding: null, mosqueVersion: null, timetableVersion: null, wilayatId: null, lastSyncAt: null, lastError: null });
 }
@@ -364,7 +376,7 @@ function scheduleUpload(kind: 'mosque' | 'timetable') {
 export function startCloud() {
   const fromUrl = bindingFromUrl();
   if (fromUrl && fromUrl !== status.binding?.code) void bindDevice(fromUrl);
-  else void syncNow();
+  else { if (status.binding) syncUrl(status.binding.code); void syncNow(); }
   setInterval(() => { void syncNow(); }, POLL_MS);
   window.addEventListener('online', () => void syncNow());
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void syncNow(); });

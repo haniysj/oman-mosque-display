@@ -185,6 +185,21 @@ await t.locator('.mp-item', { hasText: 'جامع نزوى' }).click(); await t.w
 ok('wilayat without a timetable → old times cleared', (await t.locator('.panel .row').count()) === 0, String(await t.locator('.panel .row').count()));
 await p.bringToFront();
 
+// Installed phone app opened for the first time (empty storage, e.g. iPhone home-screen app): mosque list opens itself
+{
+  const { devices } = await import('playwright');
+  const ph = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' });
+  await wire(ph);
+  const q = await ph.newPage(); const qerrs = []; q.on('pageerror', (e) => qerrs.push(e.message));
+  await q.clock.setFixedTime(at);
+  await q.goto(BASE + '/'); await q.waitForTimeout(2500);
+  ok('phone first run: mosque list opens automatically', (await q.locator('.mp-sheet').count()) === 1);
+  await q.locator('.mp-item', { hasText: 'جامع سمائل' }).click(); await q.waitForTimeout(3000);
+  ok('phone first run: choosing a mosque shows its times and keeps /m/<code> for «Add to Home Screen»', (await q.locator('.m-table tbody tr').count()) === 6 && new URL(q.url()).pathname === '/m/samail-jami', q.url());
+  ok('phone first run: no JS errors', qerrs.length === 0, qerrs.join('|'));
+  await ph.close();
+}
+
 // 5) Admin tabs: no separate «المسجد» tab; edit a mosque from the list (name + wilayat)
 ok('no «المسجد» admin tab', (await p.getByRole('button', { name: 'المسجد', exact: true }).count()) === 0);
 await p.getByRole('button', { name: 'المساجد والمزامنة' }).first().click(); await p.clock.runFor(1500);

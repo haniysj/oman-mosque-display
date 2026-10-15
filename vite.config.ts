@@ -37,7 +37,7 @@ export default defineConfig({
         description: 'شاشة مواقيت الصلاة والإقامة للمساجد في سلطنة عُمان — تعمل دون إنترنت',
         lang: 'ar',
         dir: 'rtl',
-        start_url: '/',
+        start_url: '/', // a home-screen app starting with empty storage (iPhone) opens the mosque list itself
         scope: '/',
         display: 'fullscreen',
         display_override: ['fullscreen', 'standalone'],

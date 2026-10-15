@@ -15,7 +15,7 @@ import { useDisplayState } from './useDisplay';
 import { AdhkarScreen } from './AdhkarScreen';
 import { MosquePicker } from './MosquePicker';
 import { ReminderBell } from './ReminderBell';
-import { useCloud } from '../../services/cloud';
+import { bindingFromUrl, getCloud, useCloud } from '../../services/cloud';
 
 const PRAYER_NAMES: Record<PrayerKey, string> = { fajr: 'الفجر', dhuhr: 'الظهر', asr: 'العصر', maghrib: 'المغرب', isha: 'العشاء' };
 const STAGE_W = 1920, STAGE_H = 1080;
@@ -76,6 +76,15 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
 
   // Mosque picker: double tap / double click on the mosque name
   const [picker, setPicker] = useState(false);
+  // First launch on a phone with no mosque and no times (e.g. a freshly installed home-screen app,
+  // which on iPhone does not share Safari's storage): open the mosque list right away.
+  const firstRun = useRef(false);
+  useEffect(() => {
+    if (firstRun.current || !phone || schedule || getCloud().binding || bindingFromUrl()) return;
+    firstRun.current = true;
+    const t = setTimeout(() => { if (!getCloud().binding) setPicker(true); }, 600);
+    return () => clearTimeout(t);
+  }, [phone, schedule]);
   const nameTaps = useRef(0);
   const onNameTap = useCallback(() => {
     const t = Date.now();
