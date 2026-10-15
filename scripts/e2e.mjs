@@ -247,6 +247,17 @@ for (const [t, adhanAsr, iqAsr, adhanMaghrib] of [['15:20:00', 'الآن', 'ال
     } });
 }
 
+// Phone, between adhan and iqamah: minutes to the iqamah + «please switch off the phone» (Asr 15:14 → 15:34)
+await shot(browser, { name: 'phone-iqwait', w: IPHONE.viewport.width, h: IPHONE.viewport.height, at: muscat(SAT, '15:20:30'), ua: IPHONE.userAgent, isMobile: true,
+  check: async (p) => {
+    const t = (await p.locator('.m-iqwait').textContent()) || '';
+    ok('phone: iqamah wait shows minutes only + phone notice', t.includes('الإقامة بعد:') && t.includes('14') && t.includes('يرجى إغلاق الهاتف النقال') && !/\d+:\d{2}:\d{2}/.test(t), t);
+    ok('phone: the two «next» lines are hidden meanwhile', (await p.locator('.m-next:not(.m-iqwait)').count()) === 0);
+    await p.locator('.m-iqwait').scrollIntoViewIfNeeded(); await p.screenshot({ path: `${OUT}/phone-iqwait.png` });
+  } });
+await shot(browser, { name: 'phone-after-iqamah', w: IPHONE.viewport.width, h: IPHONE.viewport.height, at: muscat(SAT, '15:50:00'), ua: IPHONE.userAgent, isMobile: true,
+  check: async (p) => ok('phone: after the iqamah the next adhan / iqamah lines return', (await p.locator('.m-iqwait').count()) === 0 && (await p.locator('.m-next').textContent()).includes('أذان صلاة المغرب')) });
+
 // Offline: install SW, go offline, reload → still renders from cache + IndexedDB
 {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });

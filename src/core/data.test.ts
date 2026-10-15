@@ -248,3 +248,21 @@ describe('administrative list', () => {
     expect(new Set(ids).size).toBe(63);
   });
 });
+
+describe('import for another year', () => {
+  it('re-dates a single-year file to the chosen year with full validation', async () => {
+    const { parseCsvTimetable, withYear } = await import('./timetable');
+    const csv = 'date,fajr,sunrise,dhuhr,asr,maghrib,isha\n2026-10-01,04:43,05:58,12:02,03:26,06:00,07:10\n2026-10-02,04:44,05:59,12:01,03:25,05:59,07:09\n';
+    const r = withYear(parseCsvTimetable(csv), 2027);
+    expect(r.errors).toEqual([]);
+    expect(r.records.map((x) => x.date)).toEqual(['2027-10-01', '2027-10-02']);
+    expect(r.records[0]).toMatchObject({ fajr: '04:43', asr: '15:26' });
+    expect(r.stats.years).toEqual([2027]);
+  });
+  it('drops 29 February when the target year is not a leap year', async () => {
+    const { parseCsvTimetable, withYear } = await import('./timetable');
+    const r = withYear(parseCsvTimetable('date,fajr,sunrise,dhuhr,asr,maghrib,isha\n2028-02-29,05:20,06:35,12:30,15:45,18:20,19:35\n2028-03-01,05:19,06:34,12:30,15:45,18:21,19:36\n'), 2027);
+    expect(r.records.map((x) => x.date)).toEqual(['2027-03-01']);
+    expect(r.warnings[0].message).toContain('29 فبراير');
+  });
+});

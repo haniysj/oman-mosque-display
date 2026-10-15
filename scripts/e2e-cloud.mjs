@@ -97,9 +97,16 @@ await p.locator('input[type=file][accept*=csv]').setInputFiles(new URL('../resea
 await p.clock.runFor(300);
 await p.getByRole('button', { name: 'إضافة إلى جدول مسقط' }).click(); await p.clock.runFor(1500);
 ok('timetable uploaded for wilayat', db.tables.get('muscat')?.schedule?.days?.['2026-10-10']?.fajr === '04:47');
+// the same Ministry month added again as next year's times (year chosen at upload)
+await p.locator('input[type=file][accept*=csv]').setInputFiles(new URL('../research/mara-muscat-2026-10.csv', import.meta.url).pathname);
+await p.clock.runFor(300);
+await p.getByText('سنة المواقيت:').locator('xpath=..').locator('select').selectOption('2027'); await p.clock.runFor(300);
+await p.getByRole('button', { name: 'إضافة إلى جدول مسقط' }).click(); await p.clock.runFor(1500);
+ok('upload for another year (2027) kept 2026 too', db.tables.get('muscat')?.schedule?.days?.['2027-10-10']?.fajr === '04:47' && !!db.tables.get('muscat')?.schedule?.days?.['2026-10-10']);
 await p.getByRole('button', { name: /معايرة وإكمال سنة 2026/ }).click(); await p.clock.runFor(4000);
 const mt = db.tables.get('muscat');
 ok('calibrated & completed the whole year in the cloud', Object.keys(mt.schedule.days).filter((d) => d.startsWith('2026')).length === 365 && !!mt.calibration && mt.schedule.days['2026-10-10'].source === 'official', `${Object.keys(mt.schedule.days).length} days`);
+const muscatDays = Object.keys(mt.schedule.days).length;
 await p.screenshot({ path: `${OUT}/timetable-editor.png`, fullPage: true });
 // Second, independent wilayat: Samail — uses Muscat's calibration (no official days yet)
 await p.getByRole('button', { name: '→ كل الجداول' }).click(); await p.clock.runFor(1200);
@@ -112,7 +119,7 @@ const otherSel = p.getByText('أو احسب سمائل بمعايرة جدول �
 await otherSel.selectOption('muscat'); await p.getByRole('button', { name: 'استخدام' }).click(); await p.clock.runFor(4000);
 const st = db.tables.get('samail');
 ok('Samail stored as its own table (365 days)', st && Object.keys(st.schedule.days).length === 365 && st.schedule.days['2026-10-10'].fajr !== db.tables.get('muscat').schedule.days['2026-10-10'].fajr, st ? `samail fajr ${st.schedule.days['2026-10-10'].fajr} vs muscat ${db.tables.get('muscat').schedule.days['2026-10-10'].fajr}` : 'missing');
-ok('Muscat table untouched', Object.keys(db.tables.get('muscat').schedule.days).length === 365 && db.tables.get('muscat').version === mt.version);
+ok('Muscat table untouched', Object.keys(db.tables.get('muscat').schedule.days).length === muscatDays && db.tables.get('muscat').version === mt.version);
 // edit one day in Samail
 await p.getByRole('button', { name: 'تعديل 2026-10-12' }).click(); await p.clock.runFor(200);
 const dlgDay = p.getByRole('dialog', { name: 'تعديل مواقيت يوم' });

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from 're
 import type { AppConfig, PrayerKey, PrayerSchedule } from '../../domain/types';
 import { PRAYER_KEYS } from '../../domain/types';
 import { adhkarAt, type DisplayState } from '../../core/engine';
-import { formatClock, formatGregorianAr, WEEKDAYS_AR } from '../../core/time';
+import { formatClock, formatGregorianAr, toDigits, WEEKDAYS_AR } from '../../core/time';
 import { formatHijriAr, toHijri } from '../../core/hijri';
 import { coverage } from '../../core/timetable';
 import { updateConfig, useApp } from '../../store/appStore';
@@ -455,6 +455,31 @@ function SplitAdhkar({ state, cfg, half }: { state: DisplayState; cfg: AppConfig
 
 // ------------------------------------------------------------------------------ Phone / portrait
 
+const minutesWord = (n: number) => (n === 1 ? 'دقيقة' : n === 2 ? 'دقيقتان' : n >= 3 && n <= 10 ? 'دقائق' : 'دقيقة');
+
+/** Between adhan and iqamah: minutes left (no seconds) and a phone icon that flips every minute. */
+function IqamahWait({ minutes, digits }: { minutes: number; digits: AppConfig['display']['digits'] }) {
+  return (
+    <div className="m-next m-iqwait" role="timer" aria-label={`الإقامة بعد ${minutes} ${minutesWord(minutes)}`}>
+      <div className="m-iqwait-card">
+        <span className="m-iqwait-count">
+          <span className="m-iqwait-label">الإقامة بعد:</span>
+          <span className="m-iqwait-num"><bdi className="num">{toDigits(minutes, digits)}</bdi><small>{minutesWord(minutes)}</small></span>
+        </span>
+        <span className="m-iqwait-phone">
+          <svg key={minutes} className="m-phone-ico" viewBox="0 0 48 48" width="44" height="44" aria-hidden>
+            <rect x="14" y="5" width="20" height="38" rx="4" fill="none" stroke="currentColor" strokeWidth="2.6" />
+            <path d="M21 9.5h6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+            <circle cx="24" cy="37.5" r="1.8" fill="currentColor" />
+            <path d="M8 40 40 8" stroke="#E46A6A" strokeWidth="3.2" strokeLinecap="round" />
+          </svg>
+          <span className="m-iqwait-hint">يرجى إغلاق الهاتف النقال</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function MobileView({ state, cfg, hasSchedule, controls, onNameTap, fs, embedded = false }: { state: DisplayState; cfg: AppConfig; hasSchedule: boolean; controls: React.ReactNode; onNameTap: () => void; fs: boolean; embedded?: boolean }) {
   const mSchedule = useApp((s) => s.schedule);
   const d = cfg.display;
@@ -535,7 +560,10 @@ function MobileView({ state, cfg, hasSchedule, controls, onNameTap, fs, embedded
         <div className="m-empty">{hasSchedule ? 'جدول المواقيت لا يغطي تاريخ اليوم' : 'اضغط مرتين على اسم المسجد لاختيار مسجدك'}</div>
       )}
 
-      {plan && (state.nextAdhan || state.nextIqamah) && (
+      {plan && state.currentIqamahSlot ? (
+        // between the adhan and the iqamah: big minutes to the iqamah + «please switch off your phone»
+        <IqamahWait minutes={Math.max(1, Math.ceil((plan.iqamah[state.currentIqamahSlot].at - state.now) / 60_000))} digits={d.digits} />
+      ) : plan && (state.nextAdhan || state.nextIqamah) && (
         <div className="m-next">
           {state.nextAdhan && <div><span>{eventPhrase(state.nextAdhan)}</span><b>بعد <StableDigits text={remainingText(state, state.nextAdhan, d.digits)} /></b></div>}
           {state.nextIqamah && <div><span>{eventPhrase(state.nextIqamah)}</span><b>بعد <StableDigits text={remainingText(state, state.nextIqamah, d.digits)} /></b></div>}

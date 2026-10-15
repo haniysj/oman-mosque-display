@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { AppConfig, DailyPrayerTimes, DataSourceKind, PrayerSchedule, TimeKey } from '../../domain/types';
 import { TIME_KEYS } from '../../domain/types';
 import { GOVERNORATES, findGovernorate, findWilayat, locationLabel } from '../../domain/oman';
-import { applyImport, editDay, exportCsv, exportJson, parseTimetableFile, type ImportResult } from '../../core/timetable';
+import { applyImport, editDay, exportCsv, exportJson, parseTimetableFile, withYear, type ImportResult } from '../../core/timetable';
 import { calibrate, type CalibrationProfile, type CalibrationStats } from '../../core/calibrate';
 import { fillMissing, sourceCounts } from '../../core/generate';
 import { daysInMonth, GREGORIAN_MONTHS_AR, muscatDateKey, WEEKDAYS_AR, weekdayOf } from '../../core/time';
@@ -258,7 +258,10 @@ function StepImport({ name, label, wil, schedule, disabled, onApply }: {
   onApply: (next: PrayerSchedule, what: string) => Promise<void>;
 }) {
   const [file, setFile] = useState<{ name: string; res: ImportResult } | null>(null);
+  const [year, setYear] = useState<number | null>(null); // null = as dated in the file
+  const thisYear = +muscatDateKey(now()).slice(0, 4);
   const onFile = async (f?: File) => {
+    setYear(null);
     if (!f) return;
     let res: ImportResult;
     try {
@@ -269,7 +272,9 @@ function StepImport({ name, label, wil, schedule, disabled, onApply }: {
     }
     setFile({ name: f.name, res });
   };
-  const r = file?.res;
+  const orig = file?.res;
+  const r = useMemo(() => (orig && year ? withYear(orig, year) : orig), [orig, year]);
+  const fileYear = orig && orig.stats.years.length === 1 ? orig.stats.years[0] : null;
   const apply = () => {
     if (!r || r.errors.length) return;
     const y = r.stats.years.join('/');
@@ -279,13 +284,13 @@ function StepImport({ name, label, wil, schedule, disabled, onApply }: {
 
   return (
     <Card title="١. أضف مواقيت الوزارة" icon={<IconUpload size={18} />}>
-      <p className="m-0 mb-3 text-[14px] text-ink2">أضف شهراً أو أكثر من تقويم وزارة الأوقاف لولاية {name} — من ملف أو من صورة. الأيام الجديدة تُضاف للجدول، والموجودة تُستبدل بها.</p>
+      <p className="m-0 mb-3 text-[14px] text-ink2">أضف شهراً أو أكثر من تقويم وزارة الأوقاف لولاية {name} — من ملف أو من صورة، للسنة الحالية أو لسنة قادمة. الأيام الجديدة تُضاف للجدول، والموجودة تُستبدل بها.</p>
       <div className="flex flex-wrap items-center gap-2">
         <label className={`inline-flex h-11 cursor-pointer items-center gap-2 rounded-xl border border-ink bg-ink px-4 text-[14px] font-bold text-white hover:bg-ink2 ${disabled ? 'pointer-events-none opacity-50' : ''}`}>
           <IconFileCsv /><IconFileJson />ملف Excel أو CSV أو JSON
           <input type="file" disabled={disabled} accept=".csv,.json,.xlsx,.xls,text/csv,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" className="sr-only" onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ''; }} />
         </label>
-        <ImageImportButton onParsed={(n, res) => setFile({ name: n, res })} />
+        <ImageImportButton onParsed={(n, res) => { setYear(null); setFile({ name: n, res }); }} />
         <a className="text-[13px] font-bold text-teal" href="/data/template.csv" download>تنزيل قالب CSV</a>
       </div>
 
@@ -305,6 +310,16 @@ function StepImport({ name, label, wil, schedule, disabled, onApply }: {
               <ul className="m-0 mt-1 list-disc pr-5">{r.errors.slice(0, 15).map((e, i) => <li key={i}>{e.row ? `سطر ${e.row}: ` : ''}{e.message}</li>)}</ul>
               {r.errors.length > 15 && <div>و{r.errors.length - 15} خطأ آخر…</div>}
             </Note>
+          )}
+          {fileYear && !orig!.errors.length && (
+            <div className="flex flex-wrap items-center gap-2 text-[13px]">
+              <span className="font-bold text-ink2">سنة المواقيت:</span>
+              <div className="w-64"><Select value={String(year ?? '')} onChange={(v) => setYear(v ? +v : null)} options={[
+                { value: '', label: `كما في الملف (${fileYear})` },
+                ...[thisYear - 1, thisYear, thisYear + 1, thisYear + 2, thisYear + 3].filter((y) => y !== fileYear).map((y) => ({ value: String(y), label: `اعتبرها مواقيت سنة ${y}` })),
+              ]} /></div>
+              {year && <span className="text-ink2">تُنقل كل التواريخ إلى سنة {year} بنفس اليوم والشهر.</span>}
+            </div>
           )}
           {r.stats.months.length > 0 && <MonthStrip months={r.stats.months} />}
           {r.warnings.length > 0 && <Note tone="warn"><ul className="m-0 list-disc pr-5">{r.warnings.slice(0, 8).map((e, i) => <li key={i}>{e.date ? `${e.date}: ` : ''}{e.message}</li>)}</ul></Note>}

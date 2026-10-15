@@ -469,3 +469,25 @@ export function isValidScheduleShape(x: unknown): x is PrayerSchedule {
   const s = x as PrayerSchedule;
   return !!s.meta && typeof s.meta.id === 'string' && !!s.days && typeof s.days === 'object';
 }
+
+/**
+ * Re-dates an import to another year (e.g. a Ministry file prepared for a coming year, or a file
+ * whose dates carry the wrong year). Only for single-year files; 29 Feb is dropped when the target
+ * year is not a leap year. The result is parsed again, so it gets the full validation and stats.
+ */
+export function withYear(res: ImportResult, year: number): ImportResult {
+  if (res.errors.length || res.stats.years.length !== 1 || res.stats.years[0] === year) return res;
+  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const days: Record<string, DailyPrayerTimes> = {};
+  let dropped = 0;
+  for (const r of res.records) {
+    const md = r.date.slice(5);
+    if (md === '02-29' && !leap) { dropped++; continue; }
+    const date = `${year}-${md}`;
+    days[date] = { ...r, date };
+  }
+  const csv = exportCsv({ dataVersion: DATA_VERSION, meta: buildMeta(days, { source: 'admin', sourceNote: '', locationLabel: '', wilayatId: '' }, new Date(0).toISOString()), days });
+  const out = parseCsvTimetable(csv);
+  if (dropped) out.warnings.unshift({ row: null, message: `حُذف يوم 29 فبراير لأن سنة ${year} ليست كبيسة` });
+  return out;
+}
