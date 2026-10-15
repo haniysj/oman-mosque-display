@@ -7,7 +7,7 @@ import { formatHijriAr, toHijri } from '../../core/hijri';
 import { coverage } from '../../core/timetable';
 import { updateConfig, useApp } from '../../store/appStore';
 import { simulationInfo, stopSimulation } from '../../services/clock';
-import { toggleFullscreen, useFullscreen, useWakeLock } from '../../services/platform';
+import { toggleFullscreen, useFullscreen, useSafeInsets, useWakeLock } from '../../services/platform';
 import { IconExitFullscreen, IconFullscreen, IconSettings, IconStop, IconSun } from '../common/icons';
 import { LightLayer, PatternLayer } from './Background';
 import { eventPhrase, FitText, Pill, remainingText, StableDigits, TimeText } from './parts';
@@ -48,6 +48,9 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
   const fs = useFullscreen();
   useWakeLock(cfg.display.wakeLock);
   const vp = useViewport();
+  const ins = useSafeInsets();
+  // the part of the screen not covered by the notch / Dynamic Island / home indicator
+  const av = { w: Math.max(1, vp.w - ins.left - ins.right), h: Math.max(1, vp.h - ins.top - ins.bottom), x: ins.left, y: ins.top };
   const portrait = vp.w < 760 || vp.h > vp.w * 1.05;
 
   // ---------------------------------------------------------------- controls visibility
@@ -179,7 +182,7 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
       {simBanner}
       {portrait && state.phase === 'adhkar' && !phone ? (
         // large portrait screen (vertical TV): adhkar on a tall stage
-        <Stage vpW={vp.w} vpH={vp.h} w={1080} h={Math.round(1080 * vp.h / vp.w)} className="is-tall">
+        <Stage av={av} w={1080} h={Math.round(1080 * av.h / av.w)} className="is-tall">
           <AdhkarScreen state={state} cfg={cfg} />
           {controlBar}
         </Stage>
@@ -188,16 +191,16 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
           ? <MobileView state={state} cfg={cfg} hasSchedule={!!schedule} controls={controlBar} onNameTap={onNameTap} fs={fs} />
           : (
             // tablet / vertical TV: the phone layout, scaled to fill the screen
-            <Stage vpW={vp.w} vpH={vp.h} {...portraitStage(vp.w, vp.h)} className="is-portrait-stage">
+            <Stage av={av} {...portraitStage(av.w, av.h)} className="is-portrait-stage">
               <MobileView state={state} cfg={cfg} hasSchedule={!!schedule} controls={controlBar} onNameTap={onNameTap} fs={fs} />
             </Stage>
           )
       ) : (
-        <Stage vpW={vp.w} vpH={vp.h} {...stageFor(vp.w, vp.h)}>
+        <Stage av={av} {...stageFor(av.w, av.h)}>
           {state.phase === 'adhkar'
             ? <AdhkarScreen state={state} cfg={cfg} />
             : cfg.display.screenLayout !== 'full'
-              ? <SplitView state={state} cfg={cfg} hasSchedule={!!schedule} onNameTap={onNameTap} onOpenAdmin={onOpenAdmin} stage={stageFor(vp.w, vp.h)} />
+              ? <SplitView state={state} cfg={cfg} hasSchedule={!!schedule} onNameTap={onNameTap} onOpenAdmin={onOpenAdmin} stage={stageFor(av.w, av.h)} />
               : <TvView state={state} cfg={cfg} hasSchedule={!!schedule} onOpenAdmin={onOpenAdmin} onNameTap={onNameTap} />}
           {controlBar}
         </Stage>
@@ -207,11 +210,13 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
   );
 }
 
-function Stage({ vpW, vpH, w, h, className = '', children }: { vpW: number; vpH: number; w: number; h: number; className?: string; children: React.ReactNode }) {
-  const scale = Math.min(vpW / w, vpH / h);
+function Stage({ av, w, h, className = '', children }: { av: { w: number; h: number; x: number; y: number }; w: number; h: number; className?: string; children: React.ReactNode }) {
+  const scale = Math.min(av.w / w, av.h / h);
   const style: CSSProperties = {
     width: w, height: h,
-    transform: `translate(${(vpW - w * scale) / 2}px, ${(vpH - h * scale) / 2}px) scale(${scale})`,
+    // keep the buttons finger-sized (≈34px) when a big stage is shrunk onto a small phone screen
+    ['--ui-boost' as string]: String(Math.min(3, Math.max(1, 0.74 / scale))),
+    transform: `translate(${av.x + (av.w - w * scale) / 2}px, ${av.y + (av.h - h * scale) / 2}px) scale(${scale})`,
   };
   return <div className={`stage ${className}`} style={style}>{children}</div>;
 }

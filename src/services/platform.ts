@@ -8,10 +8,24 @@ export const fullscreenSupported = () => {
   const el = document.documentElement as FsEl;
   return !!(el.requestFullscreen || el.webkitRequestFullscreen);
 };
-export const isFullscreen = () => !!(document.fullscreenElement || (document as FsDoc).webkitFullscreenElement);
+
+/**
+ * iPhone Safari (and the installed iPhone app) has no Fullscreen API for pages. There we use an
+ * in-app "full screen" mode instead: the page already fills the screen, so it only hides the buttons
+ * (exactly like real full screen does elsewhere) and is left with the same exit button.
+ */
+let pseudoFs = false;
+const PSEUDO_EVT = 'omd-pseudo-fullscreen';
+export const isFullscreen = () => pseudoFs || !!(document.fullscreenElement || (document as FsDoc).webkitFullscreenElement);
 
 /** Must be called from a user gesture (click / key press) — browsers refuse otherwise. */
 export async function toggleFullscreen(): Promise<boolean> {
+  if (pseudoFs || !fullscreenSupported()) {
+    pseudoFs = !pseudoFs;
+    document.documentElement.classList.toggle('is-pseudo-fs', pseudoFs);
+    document.dispatchEvent(new Event(PSEUDO_EVT));
+    return pseudoFs;
+  }
   try {
     if (isFullscreen()) {
       const d = document as FsDoc;
@@ -32,9 +46,40 @@ export function useFullscreen(): boolean {
     const h = () => setFs(isFullscreen());
     document.addEventListener('fullscreenchange', h);
     document.addEventListener('webkitfullscreenchange', h);
-    return () => { document.removeEventListener('fullscreenchange', h); document.removeEventListener('webkitfullscreenchange', h); };
+    document.addEventListener(PSEUDO_EVT, h);
+    return () => { document.removeEventListener('fullscreenchange', h); document.removeEventListener('webkitfullscreenchange', h); document.removeEventListener(PSEUDO_EVT, h); };
   }, []);
   return fs;
+}
+
+export interface SafeInsets { top: number; right: number; bottom: number; left: number }
+
+/**
+ * The screen areas covered by the notch / Dynamic Island / home indicator / rounded corners
+ * (iPhone, some Android phones). Zero everywhere else. Measured from CSS env(safe-area-inset-*).
+ */
+export function useSafeInsets(): SafeInsets {
+  const read = (): SafeInsets => {
+    if (typeof document === 'undefined' || !document.body) return { top: 0, right: 0, bottom: 0, left: 0 };
+    const p = document.createElement('div');
+    p.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;top:0;left:0;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)';
+    document.body.appendChild(p);
+    const s = getComputedStyle(p);
+    const r = { top: parseFloat(s.paddingTop) || 0, right: parseFloat(s.paddingRight) || 0, bottom: parseFloat(s.paddingBottom) || 0, left: parseFloat(s.paddingLeft) || 0 };
+    p.remove();
+    return r;
+  };
+  const [ins, setIns] = useState<SafeInsets>(read);
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const h = () => {
+      setIns(read());
+      clearTimeout(t); t = setTimeout(() => setIns(read()), 350); // iOS updates insets after the rotation animation
+    };
+    window.addEventListener('resize', h); window.addEventListener('orientationchange', h);
+    return () => { clearTimeout(t); window.removeEventListener('resize', h); window.removeEventListener('orientationchange', h); };
+  }, []);
+  return ins;
 }
 
 export function useOnline(): boolean {

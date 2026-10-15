@@ -150,6 +150,8 @@ function syncUrl(code: string | null) {
 }
 
 export async function bindDevice(code: string, name = '') {
+  // Edits made for the previous mosque are sent to THAT mosque before switching (never to the new one).
+  await flushPendingUpload();
   syncUrl(code);
   const prev = status.binding?.code;
   writeJson(LS_BINDING, { code, name });
@@ -318,15 +320,16 @@ export const deleteWilayatTimetable = (wilayatId: string) => rpc<boolean>('mosqu
 export const deleteMosque = (code: string) => rpc<boolean>('mosque_admin_delete_mosque', { p_password: requirePw(), p_code: code });
 
 /** Uploads this device's settings/adhkar to its bound mosque. */
-export async function pushMosque() {
-  const b = status.binding; if (!b) throw new Error('هذا الجهاز غير مرتبط بمسجد');
-  const { config, adhkar } = getState();
+export async function pushMosque(snap?: { code: string; config: AppConfig; adhkar: AdhkarItem[] }) {
+  const b = snap ? { code: snap.code, name: snap.config.mosque.nameAr } : status.binding; if (!b) throw new Error('هذا الجهاز غير مرتبط بمسجد');
+  const { config, adhkar } = snap ?? getState();
   const loc = config.mosque.location;
   if (!findWilayat(loc.governorateId, loc.wilayatId)) throw new Error('حدد المحافظة والولاية أولاً');
   const r = await rpc<{ version: number }>('mosque_admin_upsert_mosque', {
     p_password: requirePw(), p_code: b.code, p_name_ar: config.mosque.nameAr || b.name || b.code,
     p_governorate_id: loc.governorateId, p_wilayat_id: loc.wilayatId, p_config: sharedConfig(config), p_adhkar: adhkar,
   });
+  if (status.binding?.code !== b.code) return r; // the device has moved on to another mosque
   const wilayatChanged = status.wilayatId !== loc.wilayatId;
   set({ mosqueVersion: r.version, wilayatId: loc.wilayatId, binding: { code: b.code, name: config.mosque.nameAr } });
   writeJson(LS_BINDING, { code: b.code, name: config.mosque.nameAr });
@@ -355,22 +358,39 @@ export async function pushTimetable() {
 let lastSharedHash = '';
 let timer: ReturnType<typeof setTimeout> | null = null;
 const pending = new Set<'mosque' | 'timetable'>();
+/** What is waiting to be uploaded, captured with the mosque it belongs to (so a mosque switch
+ *  in the meantime can never send one mosque's settings to another). */
+let pendingSnap: { code: string; config: AppConfig; adhkar: AdhkarItem[] } | null = null;
+
+async function runUpload() {
+  if (timer) { clearTimeout(timer); timer = null; }
+  const kinds = [...pending]; pending.clear();
+  const snap = pendingSnap; pendingSnap = null;
+  if (!kinds.length) return;
+  try {
+    if (kinds.includes('mosque') && snap) await pushMosque(snap);
+    if (kinds.includes('timetable')) await pushTimetable();
+    set({ pendingUpload: false, lastError: null, lastSyncAt: new Date().toISOString() });
+    log('info', `رفع إلى السحابة (${snap?.code ?? ''}): ${kinds.join(' + ')}`);
+  } catch (e) {
+    set({ pendingUpload: false, lastError: (e as Error).message });
+  }
+}
 
 function scheduleUpload(kind: 'mosque' | 'timetable') {
   pending.add(kind);
+  if (kind === 'mosque' && status.binding) {
+    const { config, adhkar } = getState();
+    pendingSnap = { code: status.binding.code, config: JSON.parse(JSON.stringify(config)) as AppConfig, adhkar };
+  }
   set({ pendingUpload: true });
   if (timer) clearTimeout(timer);
-  timer = setTimeout(async () => {
-    const kinds = [...pending]; pending.clear();
-    try {
-      if (kinds.includes('mosque')) await pushMosque();
-      if (kinds.includes('timetable')) await pushTimetable();
-      set({ pendingUpload: false, lastError: null, lastSyncAt: new Date().toISOString() });
-      log('info', `رفع إلى السحابة: ${kinds.join(' + ')}`);
-    } catch (e) {
-      set({ pendingUpload: false, lastError: (e as Error).message });
-    }
-  }, 1500);
+  timer = setTimeout(() => void runUpload(), 1500);
+}
+
+/** Sends any waiting edits now (used before the device switches to another mosque). */
+export async function flushPendingUpload() {
+  if (pending.size) await runUpload();
 }
 
 export function startCloud() {

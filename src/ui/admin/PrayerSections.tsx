@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import type { IqamahRule, PrayerKey } from '../../domain/types';
+import { useEffect, useState } from 'react';
+import type { AppConfig, IqamahRule, PrayerKey, PrayerSchedule } from '../../domain/types';
 import { PRAYER_KEYS } from '../../domain/types';
 import { DEFAULT_IQAMAH_DELAYS, defaultConfig } from '../../domain/defaults';
 import { buildDayPlan } from '../../core/iqamah';
@@ -7,8 +7,10 @@ import { addDays, formatTimestamp, muscatDateKey, toDigits, WEEKDAYS_AR, weekday
 import { formatHijriAr, toHijri } from '../../core/hijri';
 import { updateConfig, useApp } from '../../store/appStore';
 import { now } from '../../services/clock';
+import { getMosqueConfig, getWilayatTimetable, listMosques, updateMosque, useCloud, type MosqueSummary } from '../../services/cloud';
+import { locationLabel } from '../../domain/oman';
 import { Badge, Btn, Card, Field, Grid, Note, NumberInput, Select, TextInput, TimeInput, Toggle } from './kit';
-import { IconPlus, IconRestore, IconTrash } from '../common/icons';
+import { IconPlus, IconRestore, IconCheck, IconTrash } from '../common/icons';
 
 const P_AR: Record<PrayerKey, string> = { fajr: 'الفجر', dhuhr: 'الظهر', asr: 'العصر', maghrib: 'المغرب', isha: 'العشاء' };
 const HOW_AR: Record<string, string> = { exception: 'استثناء بتاريخ', lock: 'مثبّت', record: 'من الجدول', weekday: 'قاعدة يوم', fixed: 'وقت ثابت', delay: 'بعد الأذان', friday: 'إعداد الجمعة', 'friday-fallback': 'مؤقت (الجمعة غير مضبوطة)' };
@@ -24,13 +26,11 @@ function RuleEditor({ rule, onChange }: { rule: IqamahRule; onChange: (r: Iqamah
   );
 }
 
-function TodayPreview() {
-  const cfg = useApp((s) => s.config);
-  const schedule = useApp((s) => s.schedule);
+function TodayPreview({ cfg, schedule }: { cfg: AppConfig; schedule: PrayerSchedule | null }) {
   const [offset, setOffset] = useState(0);
   const date = addDays(muscatDateKey(now()), offset);
   const rec = schedule?.days[date];
-  if (!rec) return <Note tone="warn">لا توجد مواقيت لتاريخ {date} في الجدول النشط — لا يمكن عرض المعاينة.</Note>;
+  if (!rec) return <Note tone="warn">لا توجد مواقيت لتاريخ {date} في جدول ولاية هذا المسجد — لا يمكن عرض المعاينة.</Note>;
   const plan = buildDayPlan(rec, cfg);
   const f = (ms: number) => { const t = formatTimestamp(ms, cfg.display.timeFormat, 'western'); return `${t.text} ${t.period}`; };
   return (
@@ -42,7 +42,7 @@ function TodayPreview() {
       </>
     }>
       <div className="overflow-x-auto">
-        <table className="w-full text-[14px]">
+        <table className="w-full text-[14px]" data-testid="iq-preview">
           <thead><tr className="text-muted"><th className="py-1 text-right">الصلاة</th><th>الأذان</th><th>الإقامة</th><th>المصدر</th></tr></thead>
           <tbody>
             {PRAYER_KEYS.map((k) => (
@@ -62,18 +62,122 @@ function TodayPreview() {
   );
 }
 
+const LOCAL = '__local__';
+
+/**
+ * Iqamah settings belong to ONE mosque. The admin picks the mosque at the top:
+ *  - this screen's own mosque → edited live on this screen (and uploaded to that mosque only);
+ *  - any other mosque → loaded from the cloud, edited here, saved to that mosque only.
+ * Other mosques are never touched.
+ */
 export function IqamahSection() {
-  const cfg = useApp((s) => s.config);
+  const localCfg = useApp((s) => s.config);
+  const localSchedule = useApp((s) => s.schedule);
+  const cloud = useCloud();
+  const boundCode = cloud.binding?.code ?? null;
+  const [mosques, setMosques] = useState<MosqueSummary[] | null>(null);
+  const [listErr, setListErr] = useState('');
+  const [target, setTarget] = useState<string>(boundCode ?? LOCAL);
+  const [remote, setRemote] = useState<{ code: string; cfg: AppConfig; schedule: PrayerSchedule | null; dirty: boolean } | null>(null);
+  const [busy, setBusy] = useState('');
+  const [msg, setMsg] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    let off = false;
+    listMosques().then((m) => { if (!off) setMosques(m); }).catch((e) => { if (!off) setListErr((e as Error).message); });
+    return () => { off = true; };
+  }, []);
+
+  const isLocal = target === LOCAL || target === boundCode;
+  const mosqueName = (code: string) => mosques?.find((m) => m.code === code)?.name_ar ?? code;
+
+  const pick = (code: string) => {
+    if (remote?.dirty && !window.confirm('توجد تغييرات غير محفوظة على هذا المسجد. هل تريد تجاهلها؟')) return;
+    void load(code);
+  };
+  const load = async (code: string) => {
+    setMsg(null); setTarget(code);
+    if (code === LOCAL || code === boundCode) { setRemote(null); return; }
+    setRemote(null); setBusy('load');
+    try {
+      const cfg = await getMosqueConfig(code);
+      const wid = cfg.mosque.location.wilayatId;
+      let schedule: PrayerSchedule | null = null;
+      if (localSchedule && localCfg.mosque.location.wilayatId === wid) schedule = localSchedule;
+      else { try { schedule = (await getWilayatTimetable(wid))?.schedule ?? null; } catch { schedule = null; } }
+      setRemote({ code, cfg, schedule, dirty: false });
+    } catch (e) {
+      setMsg({ tone: 'error', text: (e as Error).message });
+    } finally { setBusy(''); }
+  };
+
+  const saveRemote = async () => {
+    if (!remote) return;
+    setBusy('save'); setMsg(null);
+    try {
+      // re-read the mosque right before saving and replace ONLY its iqamah settings
+      const fresh = await getMosqueConfig(remote.code);
+      fresh.iqamah = remote.cfg.iqamah;
+      await updateMosque(remote.code, fresh);
+      setRemote({ ...remote, cfg: fresh, dirty: false });
+      setMsg({ tone: 'ok', text: `تم حفظ الإقامة لمسجد «${mosqueName(remote.code)}» فقط — تصل إلى شاشاته خلال 5 دقائق أو عند فتحها.` });
+    } catch (e) {
+      setMsg({ tone: 'error', text: (e as Error).message });
+    } finally { setBusy(''); }
+  };
+
+  const cfg = isLocal ? localCfg : remote?.cfg ?? null;
+  const schedule = isLocal ? localSchedule : remote?.schedule ?? null;
+  const set = (fn: (c: AppConfig) => void) => {
+    if (isLocal) { void updateConfig(fn); return; }
+    setRemote((r) => { if (!r) return r; const c = JSON.parse(JSON.stringify(r.cfg)) as AppConfig; fn(c); return { ...r, cfg: c, dirty: true }; });
+  };
+
+  const options = [
+    ...(boundCode ? [] : [{ value: LOCAL, label: `هذه الشاشة — ${localCfg.mosque.nameAr || 'بدون اسم'}` }]),
+    ...(boundCode && !(mosques ?? []).some((m) => m.code === boundCode) ? [{ value: boundCode, label: `${cloud.binding?.name || boundCode} (هذه الشاشة)` }] : []),
+    ...(mosques ?? []).map((m) => ({ value: m.code, label: `${m.name_ar} — ${locationLabel(m.governorate_id, m.wilayat_id)}${m.code === boundCode ? ' (هذه الشاشة)' : ''}` })),
+  ];
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Card title="المسجد">
+        <div className="flex flex-col gap-2">
+          <Field label="إعدادات الإقامة لأي مسجد؟" hint="كل مسجد له إقامته الخاصة: التأخير بعد الأذان، الوقت الثابت، التثبيت، قواعد الأيام والاستثناءات. التعديل هنا لا يغيّر أي مسجد آخر.">
+            <Select value={target} onChange={pick} options={options} />
+          </Field>
+          {listErr && !mosques && <Note tone="warn">تعذّر جلب قائمة المساجد ({listErr}) — يمكنك تعديل إقامة هذه الشاشة فقط الآن.</Note>}
+          {isLocal
+            ? <Note tone="info">{boundCode ? <>تعدّل الآن مسجد هذه الشاشة «{localCfg.mosque.nameAr || boundCode}». يُحفظ كل تغيير فوراً ويُرفع لهذا المسجد وحده.</> : <>هذه الشاشة غير مرتبطة بمسجد في السحابة — التعديل يُحفظ على هذا الجهاز فقط.</>}</Note>
+            : remote && <Note tone="info">تعدّل مسجد «{mosqueName(remote.code)}» (ليس مسجد هذه الشاشة). اضغط «حفظ» لإرسال التعديل إليه وحده.</Note>}
+          {busy === 'load' && <Note tone="info">جارٍ تحميل إعدادات المسجد…</Note>}
+          {msg && <Note tone={msg.tone === 'ok' ? 'ok' : 'error'}>{msg.text}</Note>}
+        </div>
+      </Card>
+
+      {cfg && <IqamahEditor cfg={cfg} schedule={schedule} set={set} />}
+
+      {!isLocal && remote && (
+        <div className="sticky bottom-3 z-10 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-white/95 p-3 shadow-lg backdrop-blur">
+          <Btn kind="primary" disabled={!remote.dirty || !!busy} onClick={() => void saveRemote()}><IconCheck size={16} />{busy === 'save' ? 'جارٍ الحفظ…' : `حفظ إقامة «${mosqueName(remote.code)}»`}</Btn>
+          <Btn disabled={!remote.dirty || !!busy} onClick={() => void load(remote.code)}>تجاهل التغييرات</Btn>
+          {remote.dirty ? <Badge tone="saffron">تغييرات غير محفوظة</Badge> : <Badge tone="teal">محفوظ</Badge>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function IqamahEditor({ cfg, schedule, set }: { cfg: AppConfig; schedule: PrayerSchedule | null; set: (fn: (c: AppConfig) => void) => void }) {
   const iq = cfg.iqamah;
   const [wd, setWd] = useState(4);
   const [exDate, setExDate] = useState(muscatDateKey(now()));
   const [exPrayer, setExPrayer] = useState<PrayerKey | 'jumuah'>('fajr');
   const [exTime, setExTime] = useState('');
-  const set = (fn: (c: typeof cfg) => void) => void updateConfig(fn);
 
   return (
-    <div className="flex flex-col gap-4">
-      <TodayPreview />
+    <>
+      <TodayPreview cfg={cfg} schedule={schedule} />
       <Card title="الإقامة اليومية" actions={<Btn small kind="ghost" onClick={() => set((c) => { c.iqamah.rules = defaultConfig().iqamah.rules; })}><IconRestore size={16} />استعادة الافتراضي</Btn>}>
         <p className="m-0 mb-3 text-[13px] text-muted">الإقامة = وقت الأذان + التأخير، أو وقت ثابت. القيم الافتراضية للعرض فقط: {PRAYER_KEYS.map((k) => `${P_AR[k]} ${DEFAULT_IQAMAH_DELAYS[k]}`).join('، ')} دقيقة.</p>
         <div className="flex flex-col gap-2">
@@ -145,7 +249,7 @@ export function IqamahSection() {
           </ul>
         )}
       </Card>
-    </div>
+    </>
   );
 }
 

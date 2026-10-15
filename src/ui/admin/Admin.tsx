@@ -168,8 +168,8 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[70] overflow-y-auto bg-paper font-cairo text-ink" dir="rtl" role="dialog" aria-label="لوحة الإدارة">
-      <header className="no-print sticky top-0 z-10 border-b border-line bg-white/95 backdrop-blur">
+    <div className="admin-root fixed inset-0 z-[70] overflow-y-auto bg-paper font-cairo text-ink" dir="rtl" role="dialog" aria-label="لوحة الإدارة">
+      <header className="admin-head no-print sticky top-0 z-10 border-b border-line bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
             <BrandMark size={36} />

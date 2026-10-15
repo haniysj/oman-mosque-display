@@ -218,6 +218,46 @@ ok('mosque edited in cloud', db.mosques.get('noor-muttrah')?.name_ar === 'مسج
 await p.getByRole('button', { name: 'جدول المواقيت' }).first().click(); await p.clock.runFor(1500);
 const wtText = await p.getByText('جداول الولايات', { exact: true }).locator('xpath=ancestor::section[1]').textContent();
 ok('stored timetables list wilayat + mosques', wtText.includes('مسقط') && wtText.includes('مسجد النور الكبير') && wtText.includes('يوماً'), wtText.slice(0, 160));
+// 6c) Iqamah page: pick a mosque at the top — edits go to THAT mosque only
+{
+  await p.getByRole('button', { name: 'الإقامة' }).first().click(); await p.clock.runFor(1500);
+  const sel = p.locator('select').first();
+  const optTexts = await sel.locator('option').allTextContents();
+  ok('iqamah page: mosque selector lists the mosques', optTexts.some((x) => x.includes('مسجد النور الكبير')) && optTexts.some((x) => x.includes('(هذه الشاشة)')), optTexts.join(' | '));
+  const muscatBefore = JSON.stringify(db.mosques.get('sq-muscat').config.iqamah);
+  const localAsrBefore = await p.evaluate(async () => {
+    const db = await new Promise((res) => { const r = indexedDB.open('oman-mosque-display', 1); r.onsuccess = () => res(r.result); });
+    return new Promise((res) => { const g = db.transaction('kv').objectStore('kv').get('config'); g.onsuccess = () => res(g.result.iqamah.rules.asr.delay); });
+  });
+  await sel.selectOption('noor-muttrah'); await p.clock.runFor(1500);
+  ok('iqamah page: other mosque loaded (not this screen)', (await p.getByText('ليس مسجد هذه الشاشة').count()) === 1);
+  const asrRow2 = p.locator('div.grid', { has: p.getByText('العصر', { exact: true }) }).first();
+  const inp2 = asrRow2.locator('input[inputmode=numeric]').first(); await inp2.fill('25'); await inp2.press('Enter'); await p.clock.runFor(300);
+  // freeze Fajr at 05:10 for this mosque only
+  const fajrRow = p.locator('div.grid', { has: p.getByText('الفجر', { exact: true }) }).first();
+  await fajrRow.locator('input[type=checkbox]').check(); await p.clock.runFor(200);
+  await fajrRow.locator('input[type=time]').fill('05:10'); await p.clock.runFor(300);
+  ok('not saved before pressing «حفظ»', db.mosques.get('noor-muttrah').config.iqamah.rules.asr.delay !== 25);
+  await p.getByRole('button', { name: /^حفظ إقامة/ }).click(); await p.clock.runFor(2000);
+  const noor = db.mosques.get('noor-muttrah').config.iqamah;
+  ok('saved to the chosen mosque (asr 25 + Fajr frozen 05:10)', noor.rules.asr.delay === 25 && noor.locks?.fajr?.enabled === true && noor.locks.fajr.time === '05:10', JSON.stringify({ asr: noor.rules.asr, lock: noor.locks?.fajr }));
+  ok('other mosque untouched in the cloud', JSON.stringify(db.mosques.get('sq-muscat').config.iqamah) === muscatBefore);
+  const localAsrAfter = await p.evaluate(async () => {
+    const db = await new Promise((res) => { const r = indexedDB.open('oman-mosque-display', 1); r.onsuccess = () => res(r.result); });
+    return new Promise((res) => { const g = db.transaction('kv').objectStore('kv').get('config'); g.onsuccess = () => res(g.result); });
+  });
+  ok("this screen's own iqamah untouched", localAsrAfter.iqamah.rules.asr.delay === localAsrBefore && !localAsrAfter.iqamah.locks?.fajr?.enabled);
+  await p.screenshot({ path: `${OUT}/iqamah-per-mosque.png`, fullPage: false });
+  // the TV of «مسجد النور» picks up its own iqamah; the Muscat TV keeps its own
+  await t2.bringToFront(); await t2.reload(); await t2.waitForTimeout(2500);
+  const iq2 = await t2.locator('.panel').nth(1).textContent();
+  ok('mosque TV shows its frozen Fajr iqamah (5:10)', iq2.includes('5:10'), iq2.slice(0, 120));
+  await p.bringToFront();
+  // back to this screen's mosque: shows its own values
+  await sel.selectOption('sq-muscat'); await p.clock.runFor(800);
+  const back = await p.locator('div.grid', { has: p.getByText('العصر', { exact: true }) }).first().locator('input[inputmode=numeric]').first().inputValue();
+  ok("switching back shows this mosque's own values", back === String(localAsrBefore), back);
+}
 ok('laptop: still no JS errors', errs.length === 0, errs.join('|'));
 
 // 7) Import a timetable from an image (real OCR, no fake clock)
