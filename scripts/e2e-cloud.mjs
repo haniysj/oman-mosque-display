@@ -7,7 +7,7 @@ const results = [];
 const ok = (n, c, x = '') => { results.push(c); console.log(`${c ? 'PASS' : 'FAIL'}  ${n} ${x}`); };
 
 // ---- fake backend (mirrors supabase/mosque-cloud.sql semantics)
-const db = { pw: null, mosques: new Map(), tables: new Map() };
+const db = { pw: null, mosques: new Map(), tables: new Map(), def: null };
 const calls = [];
 function handle(fn, a) {
   calls.push(fn);
@@ -16,7 +16,9 @@ function handle(fn, a) {
     case 'mosque_admin_status': return { initialized: !!db.pw };
     case 'mosque_admin_init': if (db.pw) throw 'ALREADY_INITIALIZED'; db.pw = a.p_password; return true;
     case 'mosque_admin_login': auth(); return true;
-    case 'mosque_list': return [...db.mosques.values()].map((m) => ({ code: m.code, name_ar: m.name_ar, governorate_id: m.governorate_id, wilayat_id: m.wilayat_id, version: m.version, updated_at: new Date().toISOString(), timetable_version: db.tables.get(m.wilayat_id)?.version ?? null, timetable_days: Object.keys(db.tables.get(m.wilayat_id)?.schedule.days ?? {}).length }));
+    case 'mosque_default_get': { const m = db.def && db.mosques.get(db.def); return m ? { code: m.code, name_ar: m.name_ar, governorate_id: m.governorate_id, wilayat_id: m.wilayat_id } : null; }
+    case 'mosque_admin_set_default': auth(); if (a.p_code && !db.mosques.has(a.p_code)) throw 'mosque_not_found'; db.def = a.p_code || null; return true;
+    case 'mosque_list': return [...db.mosques.values()].sort((x, y) => (x.governorate_id + x.wilayat_id + x.name_ar).localeCompare(y.governorate_id + y.wilayat_id + y.name_ar)).map((m) => ({ code: m.code, name_ar: m.name_ar, governorate_id: m.governorate_id, wilayat_id: m.wilayat_id, version: m.version, updated_at: new Date().toISOString(), timetable_version: db.tables.get(m.wilayat_id)?.version ?? null, timetable_days: Object.keys(db.tables.get(m.wilayat_id)?.schedule.days ?? {}).length }));
     case 'mosque_timetables_summary': return [...db.tables.values()].map((t) => ({ wilayat_id: t.wilayat_id, governorate_id: t.governorate_id, version: t.version, updated_at: new Date().toISOString(), days: Object.keys(t.schedule.days).length, calibrated: !!t.calibration, mosques: [...db.mosques.values()].filter((m) => m.wilayat_id === t.wilayat_id).length }));
     case 'mosque_versions': { const m = db.mosques.get(a.p_code); if (!m) return null; return { mosque_version: m.version, wilayat_id: m.wilayat_id, timetable_version: db.tables.get(m.wilayat_id)?.version ?? null }; }
     case 'mosque_bundle': { const m = db.mosques.get(a.p_code); if (!m) return null; const t = db.tables.get(m.wilayat_id); return { mosque: { ...m }, timetable: t ? { ...t } : null }; }
@@ -185,20 +187,34 @@ await t.locator('.mp-item', { hasText: 'جامع نزوى' }).click(); await t.w
 ok('wilayat without a timetable → old times cleared', (await t.locator('.panel .row').count()) === 0, String(await t.locator('.panel .row').count()));
 await p.bringToFront();
 
-// Installed phone app opened for the first time (empty storage, e.g. iPhone home-screen app): mosque list opens itself
+// Default mosque: the admin stars «جامع سمائل»; any NEW device (no sign-in, no settings) links itself to it
+await p.getByRole('button', { name: 'المساجد والمزامنة' }).first().click(); await p.clock.runFor(1500);
+ok('mosques page shows the default-mosque note', (await p.getByTestId('default-mosque-note').textContent()).includes('غير محدد'));
+await p.getByRole('button', { name: 'جعل جامع سمائل المسجد الافتراضي' }).click(); await p.clock.runFor(300);
+await p.getByRole('button', { name: 'تأكيد' }).click(); await p.clock.runFor(1500);
+ok('default mosque saved in the cloud', db.def === 'samail-jami');
+ok('mosques page marks the default', (await p.getByTestId('default-mosque-note').textContent()).includes('جامع سمائل'));
+await p.screenshot({ path: `${OUT}/default-mosque.png` });
 {
   const { devices } = await import('playwright');
   const ph = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' });
   await wire(ph);
   const q = await ph.newPage(); const qerrs = []; q.on('pageerror', (e) => qerrs.push(e.message));
   await q.clock.setFixedTime(at);
-  await q.goto(BASE + '/'); await q.waitForTimeout(2500);
-  ok('phone first run: mosque list opens automatically', (await q.locator('.mp-sheet').count()) === 1);
-  await q.locator('.mp-item', { hasText: 'جامع سمائل' }).click(); await q.waitForTimeout(3000);
-  ok('phone first run: choosing a mosque shows its times and keeps /m/<code> for «Add to Home Screen»', (await q.locator('.m-table tbody tr').count()) === 6 && new URL(q.url()).pathname === '/m/samail-jami', q.url());
-  ok('phone first run: no JS errors', qerrs.length === 0, qerrs.join('|'));
+  await q.goto(BASE + '/'); await q.waitForTimeout(3500);
+  ok('new phone: linked to the default mosque automatically (no list, no settings)', (await q.locator('.mp-sheet').count()) === 0 && (await q.locator('.m-table tbody tr').count()) === 6 && (await q.locator('.m-name').textContent()).includes('جامع سمائل'));
+  ok('new phone: address becomes /m/<default> (for «Add to Home Screen»)', new URL(q.url()).pathname === '/m/samail-jami', q.url());
+  ok('new phone: no JS errors', qerrs.length === 0, qerrs.join('|'));
   await ph.close();
+  // a new TV too
+  const tv3 = await b.newContext({ viewport: { width: 1920, height: 1080 }, serviceWorkers: 'block' });
+  await wire(tv3);
+  const r = await tv3.newPage(); await r.clock.setFixedTime(at);
+  await r.goto(BASE + '/'); await r.waitForTimeout(3500);
+  ok('new TV: linked to the default mosque automatically', (await r.locator('.tv-name').textContent()).includes('جامع سمائل') && (await r.locator('.panel .row').count()) === 12);
+  await tv3.close();
 }
+await p.bringToFront();
 
 // 5) Admin tabs: no separate «المسجد» tab; edit a mosque from the list (name + wilayat)
 ok('no «المسجد» admin tab', (await p.getByRole('button', { name: 'المسجد', exact: true }).count()) === 0);
@@ -263,6 +279,7 @@ ok('laptop: still no JS errors', errs.length === 0, errs.join('|'));
 // 7) Import a timetable from an image (real OCR, no fake clock)
 const ocx = await b.newContext({ viewport: { width: 1366, height: 900 }, serviceWorkers: 'block' });
 await wire(ocx);
+await ocx.addInitScript(() => localStorage.setItem('omd-cloud-unbound-by-admin', '1')); // a device un-linked on purpose (local table)
 const o = await ocx.newPage(); const oerrs = []; o.on('pageerror', (e) => oerrs.push(e.message));
 await o.goto(BASE + '/#/admin'); await o.waitForTimeout(800);
 await o.getByPlaceholder('كلمة مرور المشرف').fill('secret123'); await o.getByRole('button', { name: 'دخول', exact: true }).click(); await o.waitForTimeout(1200);

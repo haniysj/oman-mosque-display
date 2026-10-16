@@ -152,6 +152,7 @@ function syncUrl(code: string | null) {
 export async function bindDevice(code: string, name = '') {
   // Edits made for the previous mosque are sent to THAT mosque before switching (never to the new one).
   await flushPendingUpload();
+  try { localStorage.removeItem(LS_MANUAL); } catch { /* ignore */ }
   syncUrl(code);
   const prev = status.binding?.code;
   writeJson(LS_BINDING, { code, name });
@@ -161,6 +162,8 @@ export async function bindDevice(code: string, name = '') {
 }
 
 export function unbindDevice() {
+  // the admin chose a device without a mosque on purpose → never auto-link it again
+  try { localStorage.setItem(LS_MANUAL, '1'); } catch { /* ignore */ }
   syncUrl(null);
   writeJson(LS_BINDING, null);
   set({ binding: null, mosqueVersion: null, timetableVersion: null, wilayatId: null, lastSyncAt: null, lastError: null });
@@ -211,6 +214,43 @@ export function syncNow(force = false): Promise<boolean> {
     }
   })();
   return syncing;
+}
+
+// ---------------------------------------------------------------- default mosque (first open of any device)
+
+const LS_MANUAL = 'omd-cloud-unbound-by-admin';
+export interface DefaultMosque { code: string; name_ar: string; governorate_id: string; wilayat_id: string }
+
+/** The platform's default mosque (null when none is set, or before the v3 SQL update). */
+export async function getDefaultMosque(): Promise<DefaultMosque | null> {
+  try { return await rpc<DefaultMosque | null>('mosque_default_get'); } catch (e) { if (e instanceof MissingRpcError) return null; throw e; }
+}
+export const setDefaultMosque = (code: string | null) => rpc<boolean>('mosque_admin_set_default', { p_password: requirePw(), p_code: code });
+
+let autoBinding = false;
+/**
+ * A device opened for the first time (no mosque yet) links itself to the platform's default mosque —
+ * no sign-in and no settings needed. If no default is set, the first mosque of the list is used.
+ * Skipped when the admin un-linked this device on purpose, or the device has its own real timetable.
+ */
+export async function autoBindDefault(): Promise<boolean> {
+  if (autoBinding || status.binding || bindingFromUrl()) return false;
+  try { if (localStorage.getItem(LS_MANUAL)) return false; } catch { /* ignore */ }
+  const sch = getState().schedule;
+  if (sch && sch.meta.source !== 'demo') return false;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
+  autoBinding = true;
+  try {
+    let d: { code: string; name_ar: string } | null = await getDefaultMosque();
+    if (!d) d = (await listMosques())[0] ?? null;
+    if (!d || status.binding) return false;
+    log('info', `ربط تلقائي بالمسجد الافتراضي ${d.code}`);
+    await bindDevice(d.code, d.name_ar);
+    return true;
+  } catch (e) {
+    set({ lastError: (e as Error).message });
+    return false;
+  } finally { autoBinding = false; }
 }
 
 // ---------------------------------------------------------------- admin
@@ -396,10 +436,12 @@ export async function flushPendingUpload() {
 export function startCloud() {
   const fromUrl = bindingFromUrl();
   if (fromUrl && fromUrl !== status.binding?.code) void bindDevice(fromUrl);
-  else { if (status.binding) syncUrl(status.binding.code); void syncNow(); }
-  setInterval(() => { void syncNow(); }, POLL_MS);
-  window.addEventListener('online', () => void syncNow());
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void syncNow(); });
+  else if (status.binding) { syncUrl(status.binding.code); void syncNow(); }
+  else void autoBindDefault();
+  const tick = () => { if (status.binding) void syncNow(); else void autoBindDefault(); };
+  setInterval(tick, POLL_MS);
+  window.addEventListener('online', tick);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') tick(); });
 
   lastSharedHash = JSON.stringify(sharedConfig(getState().config));
   // Only mosque settings/adhkar are uploaded automatically. Wilayat timetables are edited and

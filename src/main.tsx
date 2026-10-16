@@ -1,5 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import './services/install'; // catches the browser's install prompt as early as possible
 // Fonts are bundled locally (no Google Fonts request) so the display works offline.
 import '@fontsource/cairo/400.css';
 import '@fontsource/cairo/600.css';

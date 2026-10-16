@@ -5,7 +5,7 @@ import { adhkarAt, type DisplayState } from '../../core/engine';
 import { formatClock, formatGregorianAr, toDigits, WEEKDAYS_AR } from '../../core/time';
 import { formatHijriAr, toHijri } from '../../core/hijri';
 import { coverage } from '../../core/timetable';
-import { updateConfig, useApp } from '../../store/appStore';
+import { getState, updateConfig, useApp } from '../../store/appStore';
 import { simulationInfo, stopSimulation } from '../../services/clock';
 import { toggleFullscreen, useFullscreen, useSafeInsets, useWakeLock } from '../../services/platform';
 import { IconExitFullscreen, IconFullscreen, IconSettings, IconStop, IconSun } from '../common/icons';
@@ -85,7 +85,8 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
   useEffect(() => {
     if (firstRun.current || !phone || schedule || getCloud().binding || bindingFromUrl()) return;
     firstRun.current = true;
-    const t = setTimeout(() => { if (!getCloud().binding) setPicker(true); }, 600);
+    // the device links itself to the default mosque first; the list opens only if that did not happen
+    const t = setTimeout(() => { if (!getCloud().binding && !getState().schedule) setPicker(true); }, 6000);
     return () => clearTimeout(t);
   }, [phone, schedule]);
   const nameTaps = useRef(0);

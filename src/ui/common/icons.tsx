@@ -87,3 +87,6 @@ export const IconFileImage = ({ size = 18, ...r }: P) => (
 export const IconMosque = ({ size, ...r }: P) => (
   <svg {...base(size, r)}><path d="M12 3c-2.5 2-4.5 3.6-4.5 6.5h9C16.5 6.6 14.5 5 12 3zM4 21V12M20 21V12M4 12l0-3M20 12V9M7.5 9.5V21h9V9.5M3 21h18M10.5 21v-4a1.5 1.5 0 0 1 3 0v4" /></svg>
 );
+export const IconStar = ({ size, ...r }: P) => (<svg {...base(size, r)}><path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z" /></svg>);
+export const IconInstall = ({ size, ...r }: P) => (<svg {...base(size, r)}><rect x="6" y="2" width="12" height="20" rx="2.5" /><path d="M12 7v7M9 11l3 3 3-3M10 18.5h4" /></svg>);
+export const IconShareIos = ({ size, ...r }: P) => (<svg {...base(size, r)}><path d="M12 3v12M8 7l4-4 4 4" /><path d="M7 11H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1" /></svg>);

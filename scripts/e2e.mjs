@@ -59,6 +59,9 @@ async function shot(browser, { name, w, h, at, ua, mutate, hash = '', isMobile =
 }
 
 const browser = await chromium.launch();
+
+// Offline from the real cloud: no mosque exists, so the display keeps the demo data (no auto-linking).
+{ const nc = browser.newContext.bind(browser); browser.newContext = async (o) => { const c = await nc(o); await c.route(/supabase\.co\/rest\/v1\/rpc\//, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: /mosque_list|mosque_timetables_summary/.test(r.request().url()) ? '[]' : 'null' })); return c; }; }
 const SAT = '2026-10-10', FRI = '2026-10-09';
 const TV_UA = 'Mozilla/5.0 (Linux; Android 11; BRAVIA 4K VH2 Build/RTT2.220308.004) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 const IPHONE = devices['iPhone 13'];

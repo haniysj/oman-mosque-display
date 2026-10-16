@@ -8,6 +8,9 @@ const backup = JSON.parse(readFileSync(new URL('../public/data/sample-backup-DEM
 const results = [];
 const ok = (n, c, x = '') => { results.push(c); console.log(`${c ? 'PASS' : 'FAIL'}  ${n} ${x}`); };
 const b = await chromium.launch();
+
+// Offline from the real cloud: no mosque exists, so the display keeps the demo data (no auto-linking).
+{ const nc = b.newContext.bind(b); b.newContext = async (o) => { const c = await nc(o); await c.route(/supabase\.co\/rest\/v1\/rpc\//, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: /mosque_list|mosque_timetables_summary/.test(r.request().url()) ? '[]' : 'null' })); return c; }; }
 for (const strip of [false, true]) {
   const ctx = await b.newContext({ viewport: { width: 1920, height: 1080 }, serviceWorkers: 'block', userAgent: 'Mozilla/5.0 (SMART-TV; LINUX; Tizen 5.0) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/2.2 Chrome/63.0.3239.84 TV Safari/537.36' });
   if (strip) await ctx.addInitScript(() => {

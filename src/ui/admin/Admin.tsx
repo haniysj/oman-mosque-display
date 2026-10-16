@@ -8,6 +8,7 @@ import { now, startSimulation } from '../../services/clock';
 import { useOnline } from '../../services/platform';
 import { usePwaStatus } from '../../services/pwa';
 import { BrandMark, IconClose, IconLock, IconWifi, IconWifiOff, IconAlert } from '../common/icons';
+import { InstallAppButton } from './InstallApp';
 import { Badge, Btn, Note } from './kit';
 import { TimetableSection, SOURCE_AR, sourceTone } from './TimetableSection';
 import { FridaySection, HijriSection, IqamahSection, QuietSection } from './PrayerSections';
@@ -183,6 +184,7 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
               {online ? <IconWifi size={14} /> : <IconWifiOff size={14} />}{online ? 'متصل' : 'دون إنترنت'}
             </span>
             {schedule && <span className="hidden md:inline-flex"><Badge tone={sourceTone(schedule.meta.source)}>{SOURCE_AR[schedule.meta.source]}</Badge></span>}
+            <InstallAppButton />
             <Btn kind="primary" onClick={onClose}><IconClose size={16} /><span className="hidden sm:inline">العودة للشاشة</span></Btn>
           </div>
         </div>

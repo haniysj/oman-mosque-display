@@ -5,6 +5,9 @@ import { readFileSync } from 'node:fs';
 const OUT = process.env.OUT || 'shots';
 const backup = JSON.parse(readFileSync(new URL('../public/data/sample-backup-DEMO.json', import.meta.url)));
 const b = await chromium.launch();
+
+// Offline from the real cloud: no mosque exists, so the display keeps the demo data (no auto-linking).
+{ const nc = b.newContext.bind(b); b.newContext = async (o) => { const c = await nc(o); await c.route(/supabase\.co\/rest\/v1\/rpc\//, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: /mosque_list|mosque_timetables_summary/.test(r.request().url()) ? '[]' : 'null' })); return c; }; }
 const cases = [
   { n: 'iphone16pro-portrait', vp: { width: 402, height: 874 }, ins: { top: 62, bottom: 34, left: 0, right: 0 }, mobile: true },
   { n: 'iphone16pro-landscape', vp: { width: 874, height: 402 }, ins: { top: 0, bottom: 21, left: 62, right: 62 }, mobile: true },
