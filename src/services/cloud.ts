@@ -82,16 +82,22 @@ export class MissingRpcError extends Error {
 
 async function rpc<T>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new Error('لا يوجد اتصال بالإنترنت');
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 20000);
+  // Older smart-TV browsers (Tizen / webOS, Chrome < 66) have fetch but no AbortController:
+  // there the timeout is a race instead of a cancel.
+  const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+  let t: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, rej) => {
+    t = setTimeout(() => { ctrl?.abort(); const e = new Error('timeout'); e.name = 'AbortError'; rej(e); }, 20000);
+  });
   try {
-    const res = await fetch(`${URL_BASE}/rest/v1/rpc/${fn}`, {
+    const init: RequestInit = {
       method: 'POST',
       headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(args),
-      signal: ctrl.signal,
       cache: 'no-store',
-    });
+    };
+    if (ctrl) init.signal = ctrl.signal;
+    const res = await Promise.race([fetch(`${URL_BASE}/rest/v1/rpc/${fn}`, init), timeout]);
     const text = await res.text();
     if (!res.ok) {
       let msg = text;
@@ -108,7 +114,7 @@ async function rpc<T>(fn: string, args: Record<string, unknown> = {}): Promise<T
     if (e instanceof MissingRpcError) throw e;
     throw e;
   } finally {
-    clearTimeout(t);
+    if (t) clearTimeout(t);
   }
 }
 
