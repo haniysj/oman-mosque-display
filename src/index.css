@@ -496,3 +496,33 @@ button { font-family: inherit; }
   font-family: 'Thmanyah Serif Text', 'Thmanyah Serif Display', 'Thmanyah Sans', 'thmanyahseriftext', 'Noto Naskh Arabic', 'Amiri', serif;
   font-weight: 400; letter-spacing: 0;
 }
+
+/* ------------------------------------------------------------------ gold cartouche behind the mosque name */
+.display-root { --nf-c: #1F7A5E; --nf-e: #08372D; }
+.display-root.theme-navy { --nf-c: #2C5591; --nf-e: #0B1C3D; }
+.display-root.theme-maroon { --nf-c: #7E2A3B; --nf-e: #2C0A13; }
+.display-root.theme-turquoise { --nf-c: #148A80; --nf-e: #04302D; }
+.display-root.theme-amethyst { --nf-c: #5B3792; --nf-e: #1B0F35; }
+.display-root.theme-minimal { --nf-c: #22342D; --nf-e: #070D0A; }
+.display-root.theme-sand { --nf-c: #FFF9EC; --nf-e: #EAD7B2; }
+.display-root.theme-contrast { --nf-c: #000; --nf-e: #000; }
+.name-frame { display: inline-flex; align-items: stretch; max-width: 100%; vertical-align: middle; }
+.nf-mid { position: relative; display: block; min-width: 0; padding: 14px 26px 18px;
+  background: radial-gradient(ellipse at 50% 50%, var(--nf-c) 0%, var(--nf-e) 78%);
+  border-top: 9px solid #E9AE4C; border-bottom: 9px solid #E9AE4C;
+  box-shadow: inset 0 2px 0 rgba(154, 94, 18, .55), inset 0 -2px 0 rgba(154, 94, 18, .55); }
+.nf-mid::before, .nf-mid::after { content: ""; position: absolute; left: 0; right: 0; height: 9px; pointer-events: none; }
+.nf-mid::before { top: -9px; background: linear-gradient(180deg, #F7C76A, #D8932A); }
+.nf-mid::after { bottom: -9px; background: linear-gradient(180deg, #D8932A, #F2BC5C); }
+.nf-cap { flex: none; width: 64px; height: auto; display: block; margin: 0 -1px; }
+.nf-cap-fill { fill: var(--nf-e); }
+.name-frame .tv-name, .name-frame .m-name { position: relative; text-align: center; }
+/* phone */
+.name-frame--m .nf-mid { padding: 6px 12px 8px; border-top-width: 5px; border-bottom-width: 5px; }
+.name-frame--m .nf-mid::before { top: -5px; height: 5px; }
+.name-frame--m .nf-mid::after { bottom: -5px; height: 5px; }
+.name-frame--m .nf-cap { width: 26px; }
+.m-head--center .name-frame { margin: 0 auto; }
+.name-frame:not(.name-frame--m) .nf-mid { border-top-width: 12px; border-bottom-width: 12px; }
+.name-frame:not(.name-frame--m) .nf-mid::before { top: -12px; height: 12px; }
+.name-frame:not(.name-frame--m) .nf-mid::after { bottom: -12px; height: 12px; }

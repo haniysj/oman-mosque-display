@@ -57,3 +57,31 @@ export function remainingText(state: DisplayState, e: ScheduledEvent | null, dig
 export function Pill({ children, tone }: { children: ReactNode; tone: 'gold' | 'ivory' }) {
   return <span className={`row-pill row-pill--${tone}`}>{children}</span>;
 }
+
+/**
+ * Gold cartouche behind the mosque name (pointed ogee ends, gold band, inner colour from the theme).
+ * Built from 3 parts so the ends keep their shape whatever the length of the name:
+ * [right end][middle — grows with the name][left end].
+ */
+export function NameFrame({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  const cap = (flip: boolean) => (
+    <svg className="nf-cap" viewBox="0 0 46 100" preserveAspectRatio="none" aria-hidden style={flip ? { transform: 'scaleX(-1)' } : undefined}>
+      <defs>
+        <linearGradient id={`nfg${flip ? 'l' : 'r'}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#F7C76A" /><stop offset=".5" stopColor="#D8932A" /><stop offset="1" stopColor="#F2BC5C" />
+        </linearGradient>
+      </defs>
+      <path d="M-1 0H14V9H19C29 9 33 33 46 50 33 67 29 91 19 91H14V100H-1Z" fill={`url(#nfg${flip ? 'l' : 'r'})`} />
+      <path d="M-1 8H8V15H16C24 15 27 36 37 50 27 64 24 85 16 85H8V92H-1Z" fill="#9A5E12" opacity=".55" />
+      <path d="M-1 10H6V17H15C22 17 25 37 34 50 25 63 22 83 15 83H6V90H-1Z" className="nf-cap-fill" />
+    </svg>
+  );
+  return (
+    <span className={`name-frame ${className}`}>
+      {/* in RTL the first item sits on the right: its point faces right; the last one is mirrored */}
+      {cap(false)}
+      <span className="nf-mid">{children}</span>
+      {cap(true)}
+    </span>
+  );
+}

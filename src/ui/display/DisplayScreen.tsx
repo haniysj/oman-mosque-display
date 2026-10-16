@@ -10,7 +10,7 @@ import { simulationInfo, stopSimulation } from '../../services/clock';
 import { toggleFullscreen, useFullscreen, useSafeInsets, useWakeLock } from '../../services/platform';
 import { IconExitFullscreen, IconFullscreen, IconSettings, IconStop, IconSun } from '../common/icons';
 import { ArchOrnament, EdgeOrnament, LightLayer, PatternLayer } from './Background';
-import { eventPhrase, FitText, Pill, remainingText, StableDigits, TimeText } from './parts';
+import { eventPhrase, FitText, NameFrame, Pill, remainingText, StableDigits, TimeText } from './parts';
 import { useDisplayState } from './useDisplay';
 import { AdhkarScreen } from './AdhkarScreen';
 import { MosquePicker } from './MosquePicker';
@@ -331,7 +331,7 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin, onNameTap }: { state: Di
       <header className={`tv-head tv-head--${d.namePosition}`}>
         {cfg.mosque.logoDataUrl && <img className="tv-logo" src={cfg.mosque.logoDataUrl} alt="" />}
         <div className="tv-names name-tap" onClick={onNameTap} title="اضغط مرتين لتغيير المسجد">
-          <FitText text={cfg.mosque.nameAr || 'اسم المسجد'} base={Math.round(84 * d.nameScale / 100)} min={40} lines={2} className="tv-name" />
+          <NameFrame><FitText text={cfg.mosque.nameAr || 'اسم المسجد'} base={Math.round(84 * d.nameScale / 100)} min={40} lines={2} className="tv-name" /></NameFrame>
           {d.showEnglishName && cfg.mosque.nameEn && <div className="tv-name-en" dir="ltr">{cfg.mosque.nameEn}</div>}
         </div>
       </header>
@@ -520,7 +520,7 @@ function MobileView({ state, cfg, hasSchedule, controls, onNameTap, fs, embedded
       <header className={`m-head m-head--${d.namePosition}`}>
         <div className="m-names">
           <div onClick={onNameTap} role="button" aria-label="اضغط مرتين لتغيير المسجد" className="m-name-tap name-tap">
-            <FitText text={cfg.mosque.nameAr || 'اسم المسجد'} base={30} min={20} lines={2} className="m-name" />
+            <NameFrame className="name-frame--m"><FitText text={cfg.mosque.nameAr || 'اسم المسجد'} base={30} min={20} lines={2} className="m-name" /></NameFrame>
           </div>
           {d.showEnglishName && cfg.mosque.nameEn && <div className="m-name-en" dir="ltr">{cfg.mosque.nameEn}</div>}
         </div>
