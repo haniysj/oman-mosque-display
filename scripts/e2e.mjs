@@ -31,11 +31,12 @@ async function adminLogin(ctx, page) {
     const ok200 = (b) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(b) });
     if (fn === 'mosque_admin_status') return ok200({ initialized: true });
     if (fn === 'mosque_admin_login') return a.p_password === 'test1234' ? ok200(true) : route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ message: 'BAD_PASSWORD' }) });
+    if (fn === 'mosque_auth') return a.p_password === 'test1234' ? ok200({ role: 'super' }) : route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ message: 'BAD_PASSWORD' }) });
     if (fn === 'mosque_list' || fn === 'mosque_timetables_summary') return ok200([]);
     return ok200(null);
   });
   if (page) {
-    await page.getByPlaceholder('كلمة مرور المشرف').fill('test1234');
+    await page.getByPlaceholder('كلمة المرور', { exact: true }).fill('test1234');
     await page.getByRole('button', { name: 'دخول', exact: true }).click();
   }
 }
@@ -122,7 +123,7 @@ await shot(browser, { name: 'countdown-61s-none', w: 1920, h: 1080, at: muscat(S
 
 // Quiet black screen at iqamah + 1 min (TV) — and NOT on the phone
 // Black screen starts 5 s after the iqamah (Asr iqamah 15:34:00)
-await shot(browser, { name: 'quiet-delay', w: 1920, h: 1080, at: muscat(SAT, '15:34:02'), ua: TV_UA,
+await shot(browser, { name: 'quiet-delay', w: 1920, h: 1080, at: muscat(SAT, '15:34:00'), ua: TV_UA,
   check: async (p) => ok('quiet: not yet black 2 s after iqamah', (await p.locator('.quiet-screen').count()) === 0) });
 await shot(browser, { name: 'quiet-tv', w: 1920, h: 1080, at: muscat(SAT, '15:35:00'), ua: TV_UA,
   check: async (p) => {

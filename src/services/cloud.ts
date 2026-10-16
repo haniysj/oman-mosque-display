@@ -25,7 +25,7 @@ const LS_BINDING = 'omd-cloud-binding';
 const LS_META = 'omd-cloud-meta';
 
 /** Fields that belong to the physical device, never synced. */
-const DEVICE_KEYS: (keyof DisplayPreferences)[] = ['presentation', 'deviceMode', 'wakeLock', 'clockOffsetMs', 'autoClockCorrection'];
+const DEVICE_KEYS: (keyof DisplayPreferences)[] = ['presentation', 'deviceMode', 'wakeLock', 'autoHideControls', 'clockOffsetMs', 'autoClockCorrection'];
 
 export interface MosqueSummary {
   code: string; name_ar: string; governorate_id: string; wilayat_id: string; version: number; updated_at: string;
@@ -41,7 +41,9 @@ export interface CloudStatus {
   mosqueVersion: number | null;
   timetableVersion: number | null;
   wilayatId: string | null;
-  admin: boolean; // signed in on this device (this page session)
+  admin: boolean; // signed in on this device (this page session) — general administrator OR mosque supervisor
+  role: 'super' | 'mosque' | null; // super = general administrator (all mosques); mosque = only `codes`
+  codes: string[]; // mosques a mosque supervisor may edit
   pendingUpload: boolean;
 }
 
@@ -51,7 +53,7 @@ const writeJson = (k: string, v: unknown) => { try { if (v === null) localStorag
 const meta0 = readJson<Pick<CloudStatus, 'lastSyncAt' | 'mosqueVersion' | 'timetableVersion' | 'wilayatId'>>(LS_META);
 let status: CloudStatus = {
   binding: readJson(LS_BINDING),
-  syncing: false, lastError: null, admin: false, pendingUpload: false,
+  syncing: false, lastError: null, admin: false, role: null, codes: [], pendingUpload: false,
   lastSyncAt: meta0?.lastSyncAt ?? null, mosqueVersion: meta0?.mosqueVersion ?? null,
   timetableVersion: meta0?.timetableVersion ?? null, wilayatId: meta0?.wilayatId ?? null,
 };
@@ -71,7 +73,8 @@ const ERR_AR: Record<string, string> = {
   BAD_PASSWORD: 'كلمة المرور غير صحيحة',
   ADMIN_NOT_INITIALIZED: 'لم تُنشأ كلمة مرور الإدارة بعد',
   ALREADY_INITIALIZED: 'كلمة مرور الإدارة منشأة مسبقاً',
-  PASSWORD_TOO_SHORT: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل',
+  PASSWORD_TOO_SHORT: 'كلمة المرور قصيرة جداً',
+  mosque_not_found: 'المسجد غير موجود في السحابة',
   BAD_SCHEDULE: 'جدول المواقيت غير صالح',
 };
 
@@ -265,9 +268,10 @@ export const adminStatus = () => rpc<{ initialized: boolean }>('mosque_admin_sta
 export const listMosques = () => rpc<MosqueSummary[]>('mosque_list');
 export const listTimetables = () => rpc<TimetableSummary[]>('mosque_timetables_summary');
 
-// Offline sign-in: after a successful online sign-in the device keeps only a salted SHA-256 verifier
-// (never the password itself), so the settings can still be opened when the screen is offline.
+// Offline sign-in: after a successful online sign-in the device keeps only salted SHA-256 verifiers
+// (never the passwords), with the role they open, so the settings still open when the screen is offline.
 const LS_VERIFIER = 'omd-admin-verifier';
+type Verifier = { salt: string; h: string; role?: 'super' | 'mosque'; codes?: string[] };
 async function sha256Hex(text: string): Promise<string | null> {
   try {
     if (!crypto?.subtle) return null;
@@ -275,24 +279,48 @@ async function sha256Hex(text: string): Promise<string | null> {
     return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
   } catch { return null; }
 }
-async function rememberVerifier(password: string) {
+const readVerifiers = (): Verifier[] => { const v = readJson<Verifier | Verifier[]>(LS_VERIFIER); return !v ? [] : Array.isArray(v) ? v : [v]; };
+async function rememberVerifier(password: string, role: 'super' | 'mosque', codes: string[]) {
   const salt = Math.random().toString(36).slice(2) + Date.now().toString(36);
   const h = await sha256Hex(`omd-admin:${salt}:${password}`);
-  if (h) writeJson(LS_VERIFIER, { salt, h });
+  if (!h) return;
+  // one verifier per role/mosque set; a changed password replaces the old one of the same role
+  const key = (v: Verifier) => `${v.role ?? 'super'}:${(v.codes ?? []).join(',')}`;
+  const mine: Verifier = { salt, h, role, codes };
+  writeJson(LS_VERIFIER, [mine, ...readVerifiers().filter((v) => key(v) !== key(mine))].slice(0, 6));
 }
-export const hasOfflineVerifier = () => !!readJson<{ salt: string; h: string }>(LS_VERIFIER);
-/** Opens the settings offline when the password matches the verifier saved at the last online sign-in. */
+export const hasOfflineVerifier = () => readVerifiers().length > 0;
+/** Opens the settings offline when the password matches a verifier saved at an earlier online sign-in. */
 export async function adminLoginOffline(password: string) {
-  const v = readJson<{ salt: string; h: string }>(LS_VERIFIER);
-  if (!v) throw new Error('أول دخول على هذا الجهاز يحتاج اتصالاً بالإنترنت');
-  if ((await sha256Hex(`omd-admin:${v.salt}:${password}`)) !== v.h) throw new Error('كلمة المرور غير صحيحة');
-  adminPassword = password; set({ admin: true });
+  const vs = readVerifiers();
+  if (!vs.length) throw new Error('أول دخول على هذا الجهاز يحتاج اتصالاً بالإنترنت');
+  for (const v of vs) {
+    if ((await sha256Hex(`omd-admin:${v.salt}:${password}`)) === v.h) {
+      adminPassword = password; set({ admin: true, role: v.role ?? 'super', codes: v.codes ?? [] });
+      return;
+    }
+  }
+  throw new Error('كلمة المرور غير صحيحة');
 }
 
-export async function adminInit(password: string) { await rpc('mosque_admin_init', { p_password: password }); adminPassword = password; set({ admin: true }); void rememberVerifier(password); }
-export async function adminLogin(password: string) { await rpc('mosque_admin_login', { p_password: password }); adminPassword = password; set({ admin: true }); void rememberVerifier(password); }
-export function adminLogout() { adminPassword = null; set({ admin: false, pendingUpload: false }); }
-export async function adminChangePassword(oldP: string, newP: string) { await rpc('mosque_admin_change_password', { p_old: oldP, p_new: newP }); adminPassword = newP; void rememberVerifier(newP); }
+const signedIn = (password: string, role: 'super' | 'mosque', codes: string[]) => {
+  adminPassword = password; set({ admin: true, role, codes }); void rememberVerifier(password, role, codes);
+};
+export async function adminInit(password: string) { await rpc('mosque_admin_init', { p_password: password }); signedIn(password, 'super', []); }
+/** General administrator password → everything; a mosque password → that mosque's settings only. */
+export async function adminLogin(password: string) {
+  try {
+    const r = await rpc<{ role: 'super' | 'mosque'; codes?: string[] } | null>('mosque_auth', { p_password: password });
+    if (!r || (r.role !== 'super' && r.role !== 'mosque')) throw new Error('كلمة المرور غير صحيحة');
+    signedIn(password, r.role === 'mosque' ? 'mosque' : 'super', r.codes ?? []);
+  } catch (e) {
+    if (!(e instanceof MissingRpcError)) throw e;
+    await rpc('mosque_admin_login', { p_password: password }); // before the v4 SQL update
+    signedIn(password, 'super', []);
+  }
+}
+export function adminLogout() { adminPassword = null; set({ admin: false, role: null, codes: [], pendingUpload: false }); }
+export async function adminChangePassword(oldP: string, newP: string) { await rpc('mosque_admin_change_password', { p_old: oldP, p_new: newP }); adminPassword = newP; void rememberVerifier(newP, 'super', []); }
 
 const requirePw = () => { if (!adminPassword) throw new Error('سجّل الدخول كمشرف أولاً'); return adminPassword; };
 
@@ -306,6 +334,43 @@ export async function createMosque(code: string, nameAr: string, governorateId: 
     p_password: requirePw(), p_code: code, p_name_ar: nameAr, p_governorate_id: governorateId, p_wilayat_id: wilayatId, p_config: cfg, p_adhkar: adhkar,
   });
 }
+
+/** Reads one mosque's shared settings + adhkar (for editing another mosque from the settings). */
+export async function getMosqueBundle(code: string): Promise<{ cfg: AppConfig; adhkar: AdhkarItem[] | null; wilayatSchedule: PrayerSchedule | null }> {
+  const b = await rpc<Bundle | null>('mosque_bundle', { p_code: code });
+  if (!b) throw new Error(`المسجد «${code}» غير موجود في السحابة`);
+  const c = mergeConfig(b.mosque.config ?? {});
+  c.mosque.nameAr = b.mosque.name_ar;
+  c.mosque.location = { ...c.mosque.location, governorateId: b.mosque.governorate_id, wilayatId: b.mosque.wilayat_id };
+  const sch = b.timetable && isValidScheduleShape(b.timetable.schedule) ? b.timetable.schedule : null;
+  return { cfg: c, adhkar: Array.isArray(b.mosque.adhkar) && b.mosque.adhkar.length ? b.mosque.adhkar : null, wilayatSchedule: sch };
+}
+
+/**
+ * Saves one mosque's settings (iqamah, Friday, display, adhkar…) — allowed for the general
+ * administrator and for that mosque's supervisor. Name / wilayat are not touched.
+ */
+export async function saveMosqueSettings(code: string, cfg: AppConfig, adhkar: AdhkarItem[] | null) {
+  if (!canEdit(code)) throw new Error('لا تملك صلاحية تعديل هذا المسجد');
+  let r: { version: number };
+  try {
+    r = await rpc<{ version: number }>('mosque_manager_update', { p_password: requirePw(), p_code: code, p_config: sharedConfig(cfg), p_adhkar: adhkar });
+  } catch (e) {
+    if (!(e instanceof MissingRpcError) || status.role !== 'super') throw e;
+    const loc = cfg.mosque.location; // before the v4 SQL update: general administrator path
+    r = await rpc<{ version: number }>('mosque_admin_upsert_mosque', { p_password: requirePw(), p_code: code, p_name_ar: cfg.mosque.nameAr, p_governorate_id: loc.governorateId, p_wilayat_id: loc.wilayatId, p_config: sharedConfig(cfg), p_adhkar: adhkar });
+  }
+  if (status.binding?.code === code) await syncNow(true);
+  return r;
+}
+
+/** The signed-in person may edit this mosque's settings. */
+export const canEdit = (code: string | null | undefined) => !!code && status.admin && (status.role === 'super' || status.codes.includes(code));
+export const isSuper = () => status.admin && status.role === 'super';
+
+/** General administrator: set / change / remove (empty) a mosque's own password. */
+export const setMosquePassword = (code: string, pw: string | null) => rpc<boolean>('mosque_admin_set_mosque_password', { p_password: requirePw(), p_code: code, p_new: pw || null });
+export const listMosquePasswords = () => rpc<{ code: string; updated_at: string }[]>('mosque_admin_mosque_passwords', { p_password: requirePw() });
 
 /** Reads one mosque's shared settings (for the edit dialog). */
 export async function getMosqueConfig(code: string): Promise<AppConfig> {
@@ -369,6 +434,13 @@ export const deleteMosque = (code: string) => rpc<boolean>('mosque_admin_delete_
 export async function pushMosque(snap?: { code: string; config: AppConfig; adhkar: AdhkarItem[] }) {
   const b = snap ? { code: snap.code, name: snap.config.mosque.nameAr } : status.binding; if (!b) throw new Error('هذا الجهاز غير مرتبط بمسجد');
   const { config, adhkar } = snap ?? getState();
+  if (status.role === 'mosque') {
+    // mosque supervisor: only this mosque's settings + adhkar (name / wilayat stay as they are)
+    if (!canEdit(b.code)) throw new Error('لا تملك صلاحية تعديل هذا المسجد');
+    const r = await rpc<{ version: number }>('mosque_manager_update', { p_password: requirePw(), p_code: b.code, p_config: sharedConfig(config), p_adhkar: adhkar });
+    if (status.binding?.code === b.code) set({ mosqueVersion: r.version });
+    return r;
+  }
   const loc = config.mosque.location;
   if (!findWilayat(loc.governorateId, loc.wilayatId)) throw new Error('حدد المحافظة والولاية أولاً');
   const r = await rpc<{ version: number }>('mosque_admin_upsert_mosque', {
@@ -453,7 +525,7 @@ export function startCloud() {
   // Only mosque settings/adhkar are uploaded automatically. Wilayat timetables are edited and
   // saved explicitly from «جدول المواقيت» (so a screen can never overwrite its wilayat's table).
   onLocalChange((k) => {
-    if (!status.admin || !status.binding) return;
+    if (!status.admin || !status.binding || !canEdit(status.binding.code)) return;
     if (k === 'config') {
       const h = JSON.stringify(sharedConfig(getState().config));
       if (h !== lastSharedHash) { lastSharedHash = h; scheduleUpload('mosque'); }

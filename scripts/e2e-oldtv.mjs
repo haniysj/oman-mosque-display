@@ -60,7 +60,7 @@ for (const strip of [false, true]) {
   await p.mouse.click(960, 540); await p.mouse.click(960, 540); await p.clock.runFor(300);
   await p.getByRole('button', { name: 'الإعدادات' }).click(); await p.clock.runFor(1500); await p.waitForTimeout(500);
   const body = await p.locator('body').textContent();
-  ok('fresh old TV: settings open the admin sign-in (no AbortController error)', !body.includes('AbortController') && (await p.getByPlaceholder('كلمة مرور المشرف').count()) === 1, body.slice(0, 120));
+  ok('fresh old TV: settings open the admin sign-in (no AbortController error)', !body.includes('AbortController') && (await p.getByPlaceholder('كلمة المرور', { exact: true }).count()) === 1, body.slice(0, 120));
   ok('fresh old TV: no JS errors', errs.length === 0, errs.join(' | '));
   await p.screenshot({ path: `${OUT}/old-tv-default.png` });
   await ctx.close();

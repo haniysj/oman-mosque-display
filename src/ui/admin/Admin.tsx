@@ -10,6 +10,8 @@ import { usePwaStatus } from '../../services/pwa';
 import { BrandMark, IconClose, IconLock, IconWifi, IconWifiOff, IconAlert } from '../common/icons';
 import { InstallAppButton } from './InstallApp';
 import { PasswordSection } from './PasswordSection';
+import { MosqueTargetBar } from './MosqueTargetBar';
+import { resetEditTarget } from './editTarget';
 import { Badge, Btn, Note } from './kit';
 import { TimetableSection, SOURCE_AR, sourceTone } from './TimetableSection';
 import { FridaySection, HijriSection, IqamahSection, QuietSection } from './PrayerSections';
@@ -27,10 +29,14 @@ const TABS = [
   { id: 'adhkar', label: 'الأذكار' },
   { id: 'display', label: 'العرض' },
   { id: 'backup', label: 'النسخ الاحتياطي' },
-  { id: 'password', label: 'كلمة مرور المشرف' },
+  { id: 'password', label: 'كلمات المرور' },
   { id: 'diagnostics', label: 'التشخيص' },
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
+/** Settings that belong to one mosque (edited for the mosque chosen at the top). */
+const PER_MOSQUE: TabId[] = ['iqamah', 'friday', 'hijri', 'quiet', 'adhkar', 'display'];
+/** What a mosque supervisor may open. */
+const MOSQUE_TABS: TabId[] = [...PER_MOSQUE, 'diagnostics'];
 
 export function Admin({ onClose }: { onClose: () => void }) {
   const cloud = useCloud();
@@ -75,11 +81,11 @@ function AdminGate({ onClose }: { onClose: () => void }) {
       <form className="w-full max-w-sm rounded-2xl bg-white p-5 text-center" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
         <div className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-2xl bg-paper text-ink"><IconLock size={22} /></div>
         <h2 className="m-0 mb-1 text-[18px] font-extrabold text-ink">دخول المشرف</h2>
-        <p className="m-0 mb-3 text-[13px] text-muted">{first ? 'أول استخدام: أنشئ كلمة مرور المشرف لحماية الإعدادات.' : 'أدخل كلمة مرور المشرف لفتح الإعدادات.'}</p>
+        <p className="m-0 mb-3 text-[13px] text-muted">{first ? 'أول استخدام: أنشئ كلمة مرور المشرف لحماية الإعدادات.' : 'أدخل كلمة مرور المشرف العام، أو كلمة مرور مسجدك لتعديل إعداداته فقط.'}</p>
         {initialized === null ? <p className="m-0 text-[13px] text-muted">جارٍ التحقق…</p> : (
           <>
             <input autoFocus className="h-12 w-full rounded-xl border border-line px-3 text-center text-[16px]" dir="ltr" type="password" autoComplete={first ? 'new-password' : 'current-password'}
-              placeholder={first ? 'كلمة المرور (6 أحرف على الأقل)' : 'كلمة مرور المشرف'} value={pw} onChange={(e) => { setErr(''); setPw(e.target.value); }} />
+              placeholder={first ? 'كلمة المرور (6 أحرف على الأقل)' : 'كلمة المرور'} value={pw} onChange={(e) => { setErr(''); setPw(e.target.value); }} />
             {first && <input className="mt-2 h-12 w-full rounded-xl border border-line px-3 text-center text-[16px]" dir="ltr" type="password" autoComplete="new-password" placeholder="تأكيد كلمة المرور" value={pw2} onChange={(e) => setPw2(e.target.value)} />}
             {!online && <p className="m-0 mt-2 text-[12px] text-ink2">{hasOfflineVerifier() ? 'لا يوجد إنترنت — يتم التحقق على الجهاز.' : 'لا يوجد إنترنت — أول دخول على هذا الجهاز يحتاج اتصالاً.'}</p>}
             {err && <p className="m-0 mt-2 text-[13px] font-bold text-rose">{err}</p>}
@@ -129,9 +135,13 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
   const online = useOnline();
   const cloud = useCloud();
   const pwa = usePwaStatus();
-  const [tab, setTab] = useState<TabId>(() => ((t) => (TABS.some((x) => x.id === t) ? t : 'cloud'))(sessionStorage.getItem('omd-admin-tab') as TabId));
+  const tabs = cloud.role === 'mosque' ? TABS.filter((t) => MOSQUE_TABS.includes(t.id)) : TABS;
+  const [tab, setTab] = useState<TabId>(() => ((t) => (tabs.some((x) => x.id === t) ? t : tabs[0].id))(sessionStorage.getItem('omd-admin-tab') as TabId));
+  // a fresh «المسجد الذي تعدّله» for every opening of the settings (before the pages' own effects run)
+  useState(() => { resetEditTarget(); return 0; });
+  useEffect(() => () => resetEditTarget(), []);
   useEffect(() => { try { sessionStorage.setItem('omd-admin-tab', tab); } catch { /* ignore */ } }, [tab]);
-  const warnings = useAdminWarnings();
+  const warnings = useAdminWarnings().filter((w) => tabs.some((t) => t.id === w.tab));
   const [clockWarn, setClockWarn] = useState(false);
 
   // device clock sanity: obviously wrong year, or a check against the server when online
@@ -192,7 +202,7 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
           </div>
         </div>
         <nav className="mx-auto flex max-w-6xl gap-1.5 overflow-x-auto px-4 pb-2 lg:hidden" aria-label="الأقسام">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <button key={t.id} onClick={() => setTab(t.id)} className={`h-9 flex-none rounded-full border px-3.5 text-[13px] font-bold ${tab === t.id ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink2'}`}>{t.label}</button>
           ))}
         </nav>
@@ -201,7 +211,7 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
       <div className="mx-auto flex max-w-6xl gap-5 px-4 py-4">
         <aside className="no-print hidden w-56 flex-none lg:block">
           <nav className="sticky top-[84px] flex flex-col gap-1" aria-label="الأقسام">
-            {TABS.map((t) => (
+            {tabs.map((t) => (
               <button key={t.id} onClick={() => setTab(t.id)} className={`flex h-11 items-center justify-between rounded-xl px-3 text-right text-[14px] font-bold ${tab === t.id ? 'bg-ink text-white' : 'text-ink2 hover:bg-white'}`}>
                 {t.label}
                 {warnings.some((w) => w.tab === t.id) && <span className={`h-2 w-2 rounded-full ${warnings.some((w) => w.tab === t.id && w.tone === 'error') ? 'bg-rose' : 'bg-saffron'}`} />}
@@ -210,13 +220,7 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
           </nav>
         </aside>
         <main className="min-w-0 flex-1">
-          {cloud.binding && !cloud.admin && tab !== 'cloud' && (
-            <div className="no-print mb-3">
-              <button className="w-full text-right" onClick={() => setTab('cloud')}>
-                <Note tone="warn">هذا الجهاز مرتبط بمسجد «{cloud.binding.name || cloud.binding.code}». التعديلات هنا تبقى على هذا الجهاز فقط، وقد تُستبدل عند وصول تحديث من السحابة. سجّل الدخول كمشرف من «المساجد والمزامنة» لترفع تعديلاتك.</Note>
-              </button>
-            </div>
-          )}
+
           {(warnings.length > 0 || clockWarn || pwa.updateWaiting) && (
             <div className="no-print mb-4 flex flex-col gap-2">
               {clockWarn && <Note tone="error"><span className="inline-flex items-center gap-1.5"><IconAlert size={15} />ساعة الجهاز تبدو غير صحيحة — افحصها من قسم «التشخيص».</span></Note>}
@@ -227,6 +231,7 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
             </div>
           )}
           <h2 className="no-print m-0 mb-3 text-[20px] font-extrabold">{TABS.find((t) => t.id === tab)?.label}</h2>
+          {PER_MOSQUE.includes(tab) && <MosqueTargetBar />}
           {content[tab]}
           <footer className="no-print mt-8 border-t border-line pt-3 text-center text-[12px] text-muted" dir="ltr">
             Prepared by: Hani Al Ghatrifi · v{typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : ''}

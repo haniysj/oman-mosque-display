@@ -3,10 +3,11 @@ import type { AdhkarGroup, AdhkarItem, LogEntry, PrayerKey, Theme } from '../../
 import { defaultAdhkar, defaultAdhkarGroups, suggestedAdhkar } from '../../domain/defaults';
 import { createBackup, validateBackup, type BackupValidation } from '../../core/backup';
 import { computeState, groupIdOf } from '../../core/engine';
+import { editAdhkar, editConfig, useEditAdhkar, useEditCfg, useEditReady } from './editTarget';
 import { classifyDevice, isPhone, readDeviceEnv } from '../../core/device';
 import { formatTimestamp, muscatDateKey } from '../../core/time';
 import { coverage } from '../../core/timetable';
-import { restoreBackup, setAdhkar, updateConfig, useApp } from '../../store/appStore';
+import { restoreBackup, updateConfig, useApp } from '../../store/appStore';
 import { clearLogs, readLogs, requestPersistentStorage } from '../../store/db';
 import { measureServerOffset, now, realNow, simulationInfo, stopSimulation } from '../../services/clock';
 import { applyUpdateNow, usePwaStatus } from '../../services/pwa';
@@ -29,14 +30,15 @@ const afterText = (g: AdhkarGroup) => {
 };
 
 export function AdhkarSection({ onPreview }: { onPreview: () => void }) {
-  const list = useApp((s) => s.adhkar);
-  const cfg = useApp((s) => s.config);
+  const list = useEditAdhkar();
+  const cfg = useEditCfg();
+  const ready = useEditReady();
   const groups: AdhkarGroup[] = cfg.adhkar.groups?.length ? cfg.adhkar.groups : defaultAdhkarGroups();
   const [edit, setEdit] = useState<AdhkarItem | null>(null);
   const [err, setErr] = useState('');
   const { ask, ui } = useConfirm();
-  const save = (l: AdhkarItem[]) => void setAdhkar(l);
-  const setGroups = (fn: (g: AdhkarGroup[]) => AdhkarGroup[]) => void updateConfig((c) => { c.adhkar.groups = fn(JSON.parse(JSON.stringify(c.adhkar.groups?.length ? c.adhkar.groups : defaultAdhkarGroups())) as AdhkarGroup[]); });
+  const save = (l: AdhkarItem[]) => editAdhkar(l);
+  const setGroups = (fn: (g: AdhkarGroup[]) => AdhkarGroup[]) => editConfig((c) => { c.adhkar.groups = fn(JSON.parse(JSON.stringify(c.adhkar.groups?.length ? c.adhkar.groups : defaultAdhkarGroups())) as AdhkarGroup[]); });
   const gid = (a: AdhkarItem) => groupIdOf(a, groups);
   const ordered = [...list].sort((a, b) => a.order - b.order);
   const enabledCount = list.filter((a) => a.enabled && a.text.trim()).length;
@@ -95,11 +97,12 @@ export function AdhkarSection({ onPreview }: { onPreview: () => void }) {
 
   const newItem = (g: AdhkarGroup): AdhkarItem => ({ id: `dhikr-${Date.now()}`, text: '', category: g.name, source: '', seconds: null, enabled: true, order: list.length, groupId: g.id });
 
+  if (!ready) return null;
   return (
     <div className="flex flex-col gap-4">
       {ui}
       <Card title="شكل نص الأذكار">
-        <Toggle checked={cfg.display.adhkarKashida !== false} onChange={(v) => void updateConfig((c) => { c.display.adhkarKashida = v; })}
+        <Toggle checked={cfg.display.adhkarKashida !== false} onChange={(v) => editConfig((c) => { c.display.adhkarKashida = v; })}
           label="الحروف المرسلة (تطويل نهايات الكلمات)" hint="بخط ثمانية: تطويل جميل قبل الحروف الأخيرة (ن، ى، ي، ل، ه). للعرض فقط — لا يغيّر النص المحفوظ، ولا يُطبَّق على آيات القرآن ولا على لفظ الجلالة." />
       </Card>
       <Card title="مجموعات الأذكار" actions={<Btn small onClick={addGroup}><IconPlus size={14} />مجموعة جديدة</Btn>}>
@@ -228,11 +231,16 @@ export function AdhkarSection({ onPreview }: { onPreview: () => void }) {
 
 // ---------------------------------------------------------------- G. Display
 export function DisplaySection() {
-  const cfg = useApp((s) => s.config);
+  const cfg = useEditCfg();
+  const ready = useEditReady();
+  const local = useApp((s) => s.config.display);
   const d = cfg.display;
-  const set = (fn: (c: typeof cfg) => void) => void updateConfig(fn);
+  // appearance belongs to the mosque being edited; the «التشغيل على الشاشة» card belongs to this device
+  const set = (fn: (c: typeof cfg) => void) => editConfig(fn);
+  const setDevice = (fn: (c: typeof cfg) => void) => void updateConfig(fn);
   const detected = classifyDevice(readDeviceEnv());
   const DEV_AR = { tv: 'تلفاز', desktop: 'حاسوب', tablet: 'جهاز لوحي', mobile: 'هاتف' };
+  if (!ready) return null;
   return (
     <div className="flex flex-col gap-4">
       <Card title="المظهر">
@@ -271,15 +279,15 @@ export function DisplaySection() {
         <p className="m-0 mt-2 text-[12px] text-muted">تُعرض الأذكار المفعّلة من قسم «الأذكار» بالتناوب. في آخر 60 ثانية قبل الأذان أو الإقامة يحلّ العد التنازلي محل الأذكار. الهاتف والشاشات العمودية لا تتأثر.</p>
       </Card>
 
-      <Card title="التشغيل على الشاشة">
+      <Card title="التشغيل على الشاشة (هذا الجهاز فقط)">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <Toggle checked={d.presentation} onChange={(v) => set((c) => { c.display.presentation = v; })} label="وضع العرض (Kiosk)" hint="يخفي جميع الأزرار. Esc أو زر الرجوع يُظهرها، و P يبدّل الوضع. بجهاز التحكم: OK أو الأسهم تُظهر الأزرار مؤقتاً." />
-          <Toggle checked={d.autoHideControls} onChange={(v) => set((c) => { c.display.autoHideControls = v; })} label="إخفاء الأزرار تلقائياً" hint="بعد 8 ثوانٍ دون حركة." />
-          <Toggle checked={d.wakeLock} onChange={(v) => set((c) => { c.display.wakeLock = v; })} label="منع إطفاء الشاشة" hint="يعمل في المتصفحات التي تدعم Screen Wake Lock؛ قد يتطلب الأمر ضبط إعدادات التلفاز نفسه." />
+          <Toggle checked={local.presentation} onChange={(v) => setDevice((c) => { c.display.presentation = v; })} label="وضع العرض (Kiosk)" hint="يخفي جميع الأزرار. Esc أو زر الرجوع يُظهرها، و P يبدّل الوضع. بجهاز التحكم: OK أو الأسهم تُظهر الأزرار مؤقتاً." />
+          <Toggle checked={local.autoHideControls} onChange={(v) => setDevice((c) => { c.display.autoHideControls = v; })} label="إخفاء الأزرار تلقائياً" hint="بعد 8 ثوانٍ دون حركة." />
+          <Toggle checked={local.wakeLock} onChange={(v) => setDevice((c) => { c.display.wakeLock = v; })} label="منع إطفاء الشاشة" hint="يعمل في المتصفحات التي تدعم Screen Wake Lock؛ قد يتطلب الأمر ضبط إعدادات التلفاز نفسه." />
         </div>
         <div className="mt-3"><Grid>
           <Field label="نوع الجهاز" hint={`الكشف التلقائي: ${DEV_AR[detected]}. الهاتف لا يعرض الشاشة السوداء.`}>
-            <Select value={d.deviceMode} onChange={(v) => set((c) => { c.display.deviceMode = v; })} options={[{ value: 'auto', label: `تلقائي (${DEV_AR[detected]})` }, { value: 'tv', label: 'تلفاز / شاشة مسجد' }, { value: 'desktop', label: 'حاسوب' }, { value: 'mobile', label: 'هاتف' }]} />
+            <Select value={local.deviceMode} onChange={(v) => setDevice((c) => { c.display.deviceMode = v; })} options={[{ value: 'auto', label: `تلقائي (${DEV_AR[detected]})` }, { value: 'tv', label: 'تلفاز / شاشة مسجد' }, { value: 'desktop', label: 'حاسوب' }, { value: 'mobile', label: 'هاتف' }]} />
           </Field>
         </Grid></div>
         <div className="mt-3 flex flex-wrap gap-2">
