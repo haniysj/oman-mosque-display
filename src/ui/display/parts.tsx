@@ -4,7 +4,7 @@ import { formatClock, formatCountdown, muscatParts } from '../../core/time';
 import type { DisplayState, ScheduledEvent } from '../../core/engine';
 
 /** Shrinks text until it fits within `lines` lines of the box (long mosque names wrap, never clip). */
-export function FitText({ text, base, min, lines, className }: { text: string; base: number; min: number; lines: number; className?: string }) {
+export function FitText({ text, base, min, lines, className, lh = 1.3 }: { text: string; base: number; min: number; lines: number; className?: string; lh?: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(base);
   useLayoutEffect(() => {
@@ -12,23 +12,22 @@ export function FitText({ text, base, min, lines, className }: { text: string; b
     if (!el) return;
     let s = base;
     el.style.fontSize = `${s}px`;
-    const lh = 1.3;
     while (s > min && el.scrollHeight > s * lh * lines + 2) {
       s -= 2;
       el.style.fontSize = `${s}px`;
     }
     setSize(s);
-  }, [text, base, min, lines]);
-  return <div ref={ref} className={className} style={{ fontSize: size, lineHeight: 1.3 }}>{text}</div>;
+  }, [text, base, min, lines, lh]);
+  return <div ref={ref} className={className} style={{ fontSize: size, lineHeight: lh }}>{text}</div>;
 }
 
-export function TimeText({ ms, cfg, className, periodClass }: { ms: number; cfg: AppConfig; className?: string; periodClass?: string }) {
+// 12-hour times are shown without ص / م (the day context makes them clear)
+export function TimeText({ ms, cfg, className }: { ms: number; cfg: AppConfig; className?: string; periodClass?: string }) {
   const p = muscatParts(ms);
   const f = formatClock(p.hour * 60 + p.minute, 0, cfg.display.timeFormat, cfg.display.digits);
   return (
     <span className={className}>
       <bdi className="num">{f.text}</bdi>
-      {f.period && <span className={periodClass ?? 'period'}>{f.period}</span>}
     </span>
   );
 }

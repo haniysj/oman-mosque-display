@@ -7,7 +7,7 @@
  * three minutes during the quiet period therefore resumes exactly where it should be,
  * and an event can never fire early because of timer drift or rounding.
  */
-import type { AdhkarItem, AppConfig, PrayerKey, PrayerSchedule } from '../domain/types';
+import type { AdhkarGroup, AdhkarItem, AppConfig, PrayerKey, PrayerSchedule } from '../domain/types';
 import { PRAYER_KEYS } from '../domain/types';
 import { buildDayPlan, type DayPlan, type SlotKey } from './iqamah';
 import { addDays, MINUTE, muscatParts, type MuscatParts } from './time';
@@ -26,6 +26,7 @@ export interface ScheduledEvent {
 export interface Sequence {
   id: string; // `${date}:${slot}:seq`
   slot: SlotKey;
+  adhkarKey: PrayerKey | 'jumuah'; // which adhkar groups apply (Friday dhuhr → jumuah)
   label: string;
   iqamahAt: number;
   quietEnd: number;
@@ -104,13 +105,40 @@ export function enabledAdhkar(list: AdhkarItem[]): AdhkarItem[] {
   return list.filter((a) => a.enabled && a.text.trim().length > 0).sort((a, b) => a.order - b.order);
 }
 
+/** Which group a dhikr belongs to (older items without groupId: guessed from their category). */
+export function groupIdOf(item: AdhkarItem, groups: AdhkarGroup[]): string | null {
+  if (item.groupId && groups.some((g) => g.id === item.groupId)) return item.groupId;
+  const c = item.category || '';
+  if (/صباح/.test(c) && groups.some((g) => g.id === 'morning')) return 'morning';
+  if (/مساء/.test(c) && groups.some((g) => g.id === 'evening')) return 'evening';
+  return groups.find((g) => g.id === 'after')?.id ?? groups[0]?.id ?? null;
+}
+
+/**
+ * The adhkar shown after one prayer: the enabled groups that include this prayer, in group order,
+ * each with its own items in order. The title of every item becomes its group's name.
+ * slot null → every enabled group (used when no prayer applies).
+ */
+export function adhkarForSlot(list: AdhkarItem[], groups: AdhkarGroup[] | undefined, slot: PrayerKey | 'jumuah' | null): AdhkarItem[] {
+  const gs = groups && groups.length ? groups : null;
+  if (!gs) return enabledAdhkar(list);
+  const items = enabledAdhkar(list);
+  const out: AdhkarItem[] = [];
+  for (const g of gs) {
+    if (!g.enabled || (slot && !g.prayers?.[slot])) continue;
+    for (const a of items) if (groupIdOf(a, gs) === g.id) out.push({ ...a, category: g.name });
+  }
+  return out.map((a, i) => ({ ...a, order: i }));
+}
+
 function sequenceFor(plan: DayPlan, slot: SlotKey, input: EngineInput): Sequence | null {
   const cfg = input.config;
   const isJumuah = slot === 'dhuhr' && plan.isFriday;
   const selected = cfg.quiet.prayers[isJumuah ? 'jumuah' : slot];
   if (!selected) return null;
   const quietMin = Math.max(0, isJumuah ? cfg.friday.quietMinutes : cfg.quiet.minutes);
-  const hasAdhkar = cfg.adhkar.enabled && enabledAdhkar(input.adhkar).length > 0;
+  const adhkarKey = isJumuah ? 'jumuah' as const : slot;
+  const hasAdhkar = cfg.adhkar.enabled && adhkarForSlot(input.adhkar, cfg.adhkar.groups, adhkarKey).length > 0;
   const adhkarMin = hasAdhkar ? Math.max(0, isJumuah ? cfg.friday.adhkarMinutes : cfg.adhkar.minutes) : 0;
   if (!cfg.quiet.enabled && adhkarMin === 0) return null;
   const iqamahAt = plan.iqamah[slot].at;
@@ -118,6 +146,7 @@ function sequenceFor(plan: DayPlan, slot: SlotKey, input: EngineInput): Sequence
   return {
     id: `${plan.date}:${slot}:seq`,
     slot,
+    adhkarKey,
     label: slotLabel(plan, slot, cfg),
     iqamahAt,
     quietEnd,
@@ -210,7 +239,7 @@ export function computeState(input: EngineInput): DisplayState {
   let adhkarItem: AdhkarItem | null = null, adhkarIndex = -1, adhkarItemEndsAt: number | null = null;
   const enabled = enabledAdhkar(input.adhkar);
   if (phase === 'adhkar' && sequence) {
-    const a = adhkarAt(input.adhkar, cfg.adhkar.defaultSeconds, sequence.quietEnd, now);
+    const a = adhkarAt(adhkarForSlot(input.adhkar, cfg.adhkar.groups, sequence.adhkarKey ?? sequence.slot), cfg.adhkar.defaultSeconds, sequence.quietEnd, now);
     adhkarItem = a.item; adhkarIndex = a.index; adhkarItemEndsAt = a.endsAt;
   }
 

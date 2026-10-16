@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import type { AdhkarItem, LogEntry, Theme } from '../../domain/types';
-import { defaultAdhkar } from '../../domain/defaults';
+import type { AdhkarGroup, AdhkarItem, LogEntry, PrayerKey, Theme } from '../../domain/types';
+import { defaultAdhkar, defaultAdhkarGroups, suggestedAdhkar } from '../../domain/defaults';
 import { createBackup, validateBackup, type BackupValidation } from '../../core/backup';
-import { computeState } from '../../core/engine';
+import { computeState, groupIdOf } from '../../core/engine';
 import { classifyDevice, isPhone, readDeviceEnv } from '../../core/device';
 import { formatTimestamp, muscatDateKey } from '../../core/time';
 import { coverage } from '../../core/timetable';
@@ -21,22 +21,60 @@ declare const __BUILD_ID__: string;
 
 // ---------------------------------------------------------------- A. Mosque
 // ---------------------------------------------------------------- F. Adhkar
+const SLOT_AR: Record<PrayerKey | 'jumuah', string> = { fajr: 'الفجر', dhuhr: 'الظهر', asr: 'العصر', maghrib: 'المغرب', isha: 'العشاء', jumuah: 'الجمعة' };
+const SLOTS = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha', 'jumuah'] as const;
+const afterText = (g: AdhkarGroup) => {
+  const on = SLOTS.filter((k) => g.prayers?.[k]);
+  return on.length ? on.length === SLOTS.length ? 'بعد كل الصلوات والجمعة' : `بعد صلاة ${on.map((k) => SLOT_AR[k]).join('، ')}` : 'لا تُعرض بعد أي صلاة';
+};
+
 export function AdhkarSection({ onPreview }: { onPreview: () => void }) {
   const list = useApp((s) => s.adhkar);
   const cfg = useApp((s) => s.config);
+  const groups: AdhkarGroup[] = cfg.adhkar.groups?.length ? cfg.adhkar.groups : defaultAdhkarGroups();
   const [edit, setEdit] = useState<AdhkarItem | null>(null);
   const [err, setErr] = useState('');
   const { ask, ui } = useConfirm();
   const save = (l: AdhkarItem[]) => void setAdhkar(l);
-  const move = (i: number, d: number) => { const l = [...list]; const j = i + d; if (j < 0 || j >= l.length) return; [l[i], l[j]] = [l[j], l[i]]; save(l); };
+  const setGroups = (fn: (g: AdhkarGroup[]) => AdhkarGroup[]) => void updateConfig((c) => { c.adhkar.groups = fn(JSON.parse(JSON.stringify(c.adhkar.groups?.length ? c.adhkar.groups : defaultAdhkarGroups())) as AdhkarGroup[]); });
+  const gid = (a: AdhkarItem) => groupIdOf(a, groups);
+  const ordered = [...list].sort((a, b) => a.order - b.order);
   const enabledCount = list.filter((a) => a.enabled && a.text.trim()).length;
-  const cycleSec = list.filter((a) => a.enabled && a.text.trim()).reduce((s, a) => s + (a.seconds ?? cfg.adhkar.defaultSeconds), 0);
+
+  // move a dhikr up/down inside its own group (swaps with the neighbour of the same group)
+  const moveItem = (id: string, d: number) => {
+    const l = [...ordered];
+    const i = l.findIndex((a) => a.id === id); const g = gid(l[i]);
+    let j = i + d;
+    while (j >= 0 && j < l.length && gid(l[j]) !== g) j += d;
+    if (j < 0 || j >= l.length) return;
+    [l[i], l[j]] = [l[j], l[i]]; save(l);
+  };
+  const moveGroup = (i: number, d: number) => setGroups((g) => { const j = i + d; if (j < 0 || j >= g.length) return g; [g[i], g[j]] = [g[j], g[i]]; return g; });
+  const patchGroup = (id: string, fn: (g: AdhkarGroup) => void) => setGroups((gs) => gs.map((g) => { if (g.id !== id) return g; const c = { ...g, prayers: { ...g.prayers } }; fn(c); return c; }));
+  const addGroup = () => setGroups((gs) => [...gs, { id: `group-${Date.now()}`, name: 'مجموعة جديدة', enabled: true, prayers: { fajr: false, dhuhr: false, asr: false, maghrib: false, isha: false, jumuah: false } }]);
+  const deleteGroup = (g: AdhkarGroup) => {
+    const items = ordered.filter((a) => gid(a) === g.id);
+    const target = groups.find((x) => x.id !== g.id);
+    if (!target) { setErr('يجب أن تبقى مجموعة واحدة على الأقل'); return; }
+    ask(items.length ? `حذف «${g.name}»؟ تُنقل أذكارها (${items.length}) إلى «${target.name}».` : `حذف «${g.name}»؟`, () => {
+      if (items.length) save(ordered.map((a) => (gid(a) === g.id ? { ...a, groupId: target.id } : a)));
+      setGroups((gs) => gs.filter((x) => x.id !== g.id));
+    });
+  };
 
   const commitEdit = () => {
     if (!edit) return;
     if (!edit.text.trim()) { setErr('نص الذكر لا يمكن أن يكون فارغاً'); return; }
+    const gName = groups.find((g) => g.id === edit.groupId)?.name ?? edit.category;
+    const item = { ...edit, category: gName };
     const exists = list.some((a) => a.id === edit.id);
-    save(exists ? list.map((a) => (a.id === edit.id ? edit : a)) : [...list, edit]);
+    if (exists) save(ordered.map((a) => (a.id === edit.id ? item : a)));
+    else {
+      // a new dhikr goes to the end of its group
+      const lastIdx = ordered.map((a) => gid(a)).lastIndexOf(item.groupId ?? null);
+      const l = [...ordered]; l.splice(lastIdx >= 0 ? lastIdx + 1 : l.length, 0, item); save(l);
+    }
     setEdit(null); setErr('');
   };
 
@@ -49,57 +87,111 @@ export function AdhkarSection({ onPreview }: { onPreview: () => void }) {
       const items: AdhkarItem[] = arr.map((x, i) => {
         const o = x as Partial<AdhkarItem>;
         if (typeof o.text !== 'string' || !o.text.trim()) throw new Error(`الذكر رقم ${i + 1} بلا نص`);
-        return { id: `dhikr-i${Date.now()}-${i}`, text: o.text.trim(), category: String(o.category ?? ''), source: String(o.source ?? ''), seconds: typeof o.seconds === 'number' ? o.seconds : null, enabled: o.enabled !== false, order: i };
+        return { id: `dhikr-i${Date.now()}-${i}`, text: o.text.trim(), category: String(o.category ?? ''), source: String(o.source ?? ''), seconds: typeof o.seconds === 'number' ? o.seconds : null, enabled: o.enabled !== false, order: i, ...(typeof o.groupId === 'string' ? { groupId: o.groupId } : {}) };
       });
       ask(`استيراد ${items.length} ذكراً سيستبدل القائمة الحالية (${list.length}). متابعة؟`, () => save(items));
     } catch (e) { setErr((e as Error).message); }
   };
 
+  const newItem = (g: AdhkarGroup): AdhkarItem => ({ id: `dhikr-${Date.now()}`, text: '', category: g.name, source: '', seconds: null, enabled: true, order: list.length, groupId: g.id });
+
   return (
     <div className="flex flex-col gap-4">
       {ui}
-      <Card title="قائمة الأذكار" actions={
-        <>
-          <Badge tone="teal">{enabledCount} مفعّل</Badge>
-          <Badge tone="muted">دورة كاملة {Math.round(cycleSec / 60 * 10) / 10} دقيقة</Badge>
-        </>
-      }>
-        <Note>يُعرض ذكر واحد في كل مرة بالترتيب أدناه، وتتكرر الدورة حتى تنتهي مدة الأذكار. تأكد من صحة النصوص ومراجعها قبل اعتمادها.</Note>
-        <ul className="m-0 mt-3 flex list-none flex-col gap-2 p-0">
-          {list.map((a, i) => (
-            <li key={a.id} className={`rounded-xl border p-3 ${a.enabled ? 'border-line bg-white' : 'border-dashed border-line bg-paper opacity-70'}`}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="mb-1 flex flex-wrap items-center gap-1.5">
-                    {a.category && <Badge tone="muted">{a.category}</Badge>}
-                    <Badge tone="muted">{a.seconds ?? cfg.adhkar.defaultSeconds} ث</Badge>
-                    {!a.enabled && <Badge tone="saffron">معطّل</Badge>}
-                  </div>
-                  <p className="m-0 line-clamp-3 whitespace-pre-line font-amiri text-[17px] leading-8 text-ink">{a.text}</p>
-                  {a.source && <p className="m-0 text-[12px] text-muted">{a.source}</p>}
+      <Card title="مجموعات الأذكار" actions={<Btn small onClick={addGroup}><IconPlus size={14} />مجموعة جديدة</Btn>}>
+        <Note>تُعرض المجموعات بعد الصلاة بالترتيب أدناه: كل مجموعة بعد الصلوات المحددة لها فقط (مثل أذكار الصباح بعد الفجر، وأذكار المساء بعد العصر). داخل كل مجموعة تُعرض الأذكار بترتيبها.</Note>
+        <ul className="m-0 mt-3 flex list-none flex-col gap-2 p-0" aria-label="المجموعات">
+          {groups.map((g, i) => {
+            const count = ordered.filter((a) => gid(a) === g.id && a.enabled && a.text.trim()).length;
+            return (
+              <li key={g.id} data-testid={`group-${g.id}`} className={`rounded-xl border p-3 ${g.enabled ? 'border-line bg-white' : 'border-dashed border-line bg-paper opacity-75'}`}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="grid h-7 w-7 flex-none place-items-center rounded-full bg-ink text-[13px] font-extrabold text-white">{i + 1}</span>
+                  <input aria-label="اسم المجموعة" className="h-10 min-w-0 flex-1 rounded-xl border border-line px-3 text-[15px] font-bold" value={g.name}
+                    onChange={(e) => patchGroup(g.id, (x) => { x.name = e.target.value; })} />
+                  <Badge tone={count ? "teal" : "saffron"}>الأذكار: {count}</Badge>
+                  <label className="flex items-center gap-1.5 text-[13px] font-bold text-ink2"><input type="checkbox" className="accent-[#1F7A6D]" checked={g.enabled} onChange={(e) => patchGroup(g.id, (x) => { x.enabled = e.target.checked; })} />مفعّلة</label>
+                  <span className="flex flex-none">
+                    <button className="rounded-lg p-1.5 hover:bg-paper disabled:opacity-30" disabled={i === 0} aria-label={`تقديم ${g.name}`} onClick={() => moveGroup(i, -1)}><IconUp size={16} /></button>
+                    <button className="rounded-lg p-1.5 hover:bg-paper disabled:opacity-30" disabled={i === groups.length - 1} aria-label={`تأخير ${g.name}`} onClick={() => moveGroup(i, 1)}><IconDown size={16} /></button>
+                    <button className="rounded-lg p-1.5 text-rose hover:bg-rose-soft" aria-label={`حذف ${g.name}`} onClick={() => deleteGroup(g)}><IconTrash size={16} /></button>
+                  </span>
                 </div>
-                <div className="flex flex-none flex-col gap-1">
-                  <button className="rounded-lg p-1.5 hover:bg-paper disabled:opacity-30" disabled={i === 0} aria-label="أعلى" onClick={() => move(i, -1)}><IconUp size={16} /></button>
-                  <button className="rounded-lg p-1.5 hover:bg-paper disabled:opacity-30" disabled={i === list.length - 1} aria-label="أسفل" onClick={() => move(i, 1)}><IconDown size={16} /></button>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[12px] font-bold text-muted">تُعرض بعد:</span>
+                  {SLOTS.map((k) => (
+                    <button key={k} aria-pressed={!!g.prayers?.[k]} onClick={() => patchGroup(g.id, (x) => { x.prayers[k] = !x.prayers[k]; })}
+                      className={`h-8 rounded-full border px-3 text-[13px] font-bold ${g.prayers?.[k] ? 'border-teal bg-teal text-white' : 'border-line bg-white text-ink2'}`}>{SLOT_AR[k]}</button>
+                  ))}
                 </div>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <Btn small onClick={() => setEdit({ ...a })}><IconEdit size={14} />تعديل</Btn>
-                <Btn small onClick={() => save(list.map((x) => (x.id === a.id ? { ...x, enabled: !x.enabled } : x)))}>{a.enabled ? 'تعطيل' : 'تفعيل'}</Btn>
-                <Btn small kind="danger" onClick={() => ask('حذف هذا الذكر نهائياً؟', () => save(list.filter((x) => x.id !== a.id)))}><IconTrash size={14} />حذف</Btn>
-              </div>
-            </li>
-          ))}
+                <p className="m-0 mt-1.5 text-[12px] text-ink2">{afterText(g)}</p>
+              </li>
+            );
+          })}
         </ul>
+      </Card>
+
+      <Card title="الأذكار" actions={<Badge tone="teal">{enabledCount} مفعّل</Badge>}>
+        <Note>تأكد من صحة النصوص ومراجعها قبل اعتمادها. استخدم الأسهم لترتيب الأذكار داخل مجموعتها.</Note>
+        <div className="mt-3 flex flex-col gap-4">
+          {groups.map((g) => {
+            const items = ordered.filter((a) => gid(a) === g.id);
+            const sec = items.filter((a) => a.enabled && a.text.trim()).reduce((s2, a) => s2 + (a.seconds ?? cfg.adhkar.defaultSeconds), 0);
+            const sugg = g.id === 'morning' || g.id === 'evening' ? g.id : null;
+            return (
+              <section key={g.id} aria-label={g.name} className="rounded-2xl border border-line bg-paper/50 p-3">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <b className="text-[16px] text-ink">{g.name}</b>
+                    <Badge tone="muted">{afterText(g)}</Badge>
+                    {!g.enabled && <Badge tone="saffron">المجموعة معطّلة</Badge>}
+                    {sec > 0 && <Badge tone="muted">{Math.round(sec / 6) / 10} دقيقة</Badge>}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {sugg && !items.length && <Btn small onClick={() => save([...ordered, ...suggestedAdhkar(sugg).map((a, k) => ({ ...a, id: `${a.id}-${Date.now()}-${k}` }))])}><IconPlus size={14} />إضافة الأذكار المقترحة</Btn>}
+                    <Btn small kind="primary" onClick={() => setEdit(newItem(g))}><IconPlus size={14} />إضافة ذكر</Btn>
+                  </div>
+                </div>
+                {!items.length ? <p className="m-0 text-[13px] text-muted">لا توجد أذكار في هذه المجموعة بعد.</p> : (
+                  <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                    {items.map((a, k) => (
+                      <li key={a.id} className={`rounded-xl border p-3 ${a.enabled ? 'border-line bg-white' : 'border-dashed border-line bg-paper opacity-70'}`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                              <Badge tone="muted">{k + 1}</Badge>
+                              <Badge tone="muted">{a.seconds ?? cfg.adhkar.defaultSeconds} ث</Badge>
+                              {!a.enabled && <Badge tone="saffron">معطّل</Badge>}
+                            </div>
+                            <p className="m-0 line-clamp-3 whitespace-pre-line font-amiri text-[17px] leading-8 text-ink">{a.text}</p>
+                            {a.source && <p className="m-0 text-[12px] text-muted">{a.source}</p>}
+                          </div>
+                          <div className="flex flex-none flex-col gap-1">
+                            <button className="rounded-lg p-1.5 hover:bg-paper disabled:opacity-30" disabled={k === 0} aria-label="أعلى" onClick={() => moveItem(a.id, -1)}><IconUp size={16} /></button>
+                            <button className="rounded-lg p-1.5 hover:bg-paper disabled:opacity-30" disabled={k === items.length - 1} aria-label="أسفل" onClick={() => moveItem(a.id, 1)}><IconDown size={16} /></button>
+                          </div>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Btn small onClick={() => setEdit({ ...a, groupId: gid(a) ?? undefined })}><IconEdit size={14} />تعديل</Btn>
+                          <Btn small onClick={() => save(ordered.map((x) => (x.id === a.id ? { ...x, enabled: !x.enabled } : x)))}>{a.enabled ? 'تعطيل' : 'تفعيل'}</Btn>
+                          <Btn small kind="danger" onClick={() => ask('حذف هذا الذكر نهائياً؟', () => save(ordered.filter((x) => x.id !== a.id)))}><IconTrash size={14} />حذف</Btn>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            );
+          })}
+        </div>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Btn kind="primary" onClick={() => setEdit({ id: `dhikr-${Date.now()}`, text: '', category: 'أذكار بعد الصلاة', source: '', seconds: null, enabled: true, order: list.length })}><IconPlus size={16} />إضافة ذكر</Btn>
           <Btn onClick={onPreview} disabled={!enabledCount}>معاينة الدورة</Btn>
-          <Btn onClick={() => download('adhkar.json', JSON.stringify(list, null, 2), 'application/json')}><IconFileJson />تصدير JSON</Btn>
+          <Btn onClick={() => download('adhkar.json', JSON.stringify(ordered.map((a) => ({ ...a, groupId: gid(a) })), null, 2), 'application/json')}><IconFileJson />تصدير JSON</Btn>
           <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-xl border border-line bg-white px-4 text-[14px] font-bold text-ink hover:border-ink2">
             <IconFileJson />استيراد JSON
             <input type="file" accept=".json,application/json" className="sr-only" onChange={(e) => { void importJson(e.target.files?.[0]); e.target.value = ''; }} />
           </label>
-          <Btn kind="ghost" onClick={() => ask('استعادة الأذكار الافتراضية؟ ستُستبدل القائمة الحالية.', () => save(defaultAdhkar()))}><IconRestore size={16} />الافتراضي</Btn>
+          <Btn kind="ghost" onClick={() => ask('استعادة الأذكار والمجموعات الافتراضية؟ ستُستبدل القائمة الحالية.', () => { save(defaultAdhkar()); setGroups(() => defaultAdhkarGroups()); })}><IconRestore size={16} />الافتراضي</Btn>
         </div>
         {err && !edit && <div className="mt-2"><Note tone="error">{err}</Note></div>}
       </Card>
@@ -111,7 +203,9 @@ export function AdhkarSection({ onPreview }: { onPreview: () => void }) {
             <div className="flex flex-col gap-3">
               <Field label="النص"><textarea className="min-h-[140px] w-full rounded-xl border border-line p-3 font-amiri text-[18px] leading-8 outline-none focus:border-teal" value={edit.text} onChange={(e) => setEdit({ ...edit, text: e.target.value })} /></Field>
               <Grid>
-                <Field label="التصنيف"><input className="h-11 rounded-xl border border-line px-3" value={edit.category} onChange={(e) => setEdit({ ...edit, category: e.target.value })} /></Field>
+                <Field label="المجموعة" hint={afterText(groups.find((g) => g.id === edit.groupId) ?? groups[0])}>
+                  <Select value={edit.groupId ?? groups[0].id} onChange={(v) => setEdit({ ...edit, groupId: v })} options={groups.map((g) => ({ value: g.id, label: g.name }))} />
+                </Field>
                 <Field label="المصدر / التخريج" hint="مثال: رواه مسلم (591)"><input className="h-11 rounded-xl border border-line px-3" value={edit.source} onChange={(e) => setEdit({ ...edit, source: e.target.value })} /></Field>
                 <Field label="مدة العرض" hint="اتركه فارغاً لاستخدام المدة الافتراضية">
                   <input className="h-11 rounded-xl border border-line px-3 text-center" dir="ltr" inputMode="numeric" value={edit.seconds ?? ''} placeholder={String(cfg.adhkar.defaultSeconds)}

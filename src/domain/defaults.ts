@@ -1,4 +1,16 @@
-import { DATA_VERSION, type AdhkarItem, type AppConfig, type IqamahRule, type PrayerKey } from './types';
+import { DATA_VERSION, type AdhkarGroup, type AdhkarItem, type AppConfig, type IqamahRule, type PrayerKey } from './types';
+
+const PR = (on: Partial<Record<PrayerKey | 'jumuah', boolean>>): AdhkarGroup['prayers'] =>
+  ({ fajr: false, dhuhr: false, asr: false, maghrib: false, isha: false, jumuah: false, ...on });
+
+/** Default adhkar groups (display order). Every value is editable in the administration panel. */
+export function defaultAdhkarGroups(): AdhkarGroup[] {
+  return [
+    { id: 'after', name: 'أذكار بعد الصلاة', enabled: true, prayers: PR({ fajr: true, dhuhr: true, asr: true, maghrib: true, isha: true, jumuah: true }) },
+    { id: 'morning', name: 'أذكار الصباح', enabled: true, prayers: PR({ fajr: true }) },
+    { id: 'evening', name: 'أذكار المساء', enabled: true, prayers: PR({ asr: true }) },
+  ];
+}
 
 const rule = (delay: number): IqamahRule => ({ mode: 'delay', delay, fixedTime: '' });
 
@@ -48,7 +60,7 @@ export function defaultConfig(): AppConfig {
       mobileException: true,
       emergencyExit: true,
     },
-    adhkar: { enabled: true, minutes: 5, defaultSeconds: 60, audio: false },
+    adhkar: { enabled: true, minutes: 5, defaultSeconds: 60, audio: false, groups: defaultAdhkarGroups() },
     display: {
       theme: 'ornamental',
       background: 'animated',
@@ -112,7 +124,23 @@ export function defaultAdhkar(): AdhkarItem[] {
       category: 'المعوذات', source: 'سورة الإخلاص', seconds: null, enabled: true,
     },
   ];
-  return items.map((x, i) => ({ ...x, id: `dhikr-${i + 1}`, order: i }));
+  return [
+    ...items.map((x, i) => ({ ...x, groupId: 'after', id: `dhikr-${i + 1}`, order: i })),
+    ...suggestedAdhkar('morning'), ...suggestedAdhkar('evening'),
+  ].map((x, i) => ({ ...x, order: i }));
+}
+
+/** Suggested morning / evening adhkar (authentic, with references) — offered for empty groups too. */
+export function suggestedAdhkar(group: 'morning' | 'evening'): AdhkarItem[] {
+  const morning: Omit<AdhkarItem, 'id' | 'order'>[] = [
+    { text: 'اللهمّ بك أصبحنا، وبك أمسينا، وبك نحيا، وبك نموت، وإليك النشور', category: 'أذكار الصباح', source: 'رواه الترمذي (3391)', seconds: null, enabled: true },
+    { text: 'بسم الله الذي لا يضرّ مع اسمه شيءٌ في الأرض ولا في السماء، وهو السميع العليم (ثلاث مرات)', category: 'أذكار الصباح', source: 'رواه أبو داود (5088) والترمذي (3388)', seconds: null, enabled: true },
+  ];
+  const evening: Omit<AdhkarItem, 'id' | 'order'>[] = [
+    { text: 'اللهمّ بك أمسينا، وبك أصبحنا، وبك نحيا، وبك نموت، وإليك المصير', category: 'أذكار المساء', source: 'رواه الترمذي (3391)', seconds: null, enabled: true },
+    { text: 'رضيتُ بالله ربًّا، وبالإسلام دينًا، وبمحمدٍ ﷺ نبيًّا (ثلاث مرات)', category: 'أذكار المساء', source: 'رواه أبو داود (5072)', seconds: null, enabled: true },
+  ];
+  return (group === 'morning' ? morning : evening).map((x, i) => ({ ...x, groupId: group, id: `dhikr-${group}-${i + 1}`, order: 0 }));
 }
 
 /** Deep-merges stored config over defaults so new settings fields get sane values after upgrades. */

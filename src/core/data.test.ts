@@ -166,7 +166,7 @@ describe('17. backup and restoration', () => {
     const b = createBackup(c, yearSchedule(), adhkar(), '2026-10-10T08:00:00Z');
     const v = validateBackup(JSON.stringify(b));
     expect(v.ok).toBe(true);
-    expect(v.summary).toMatchObject({ days: 365, adhkar: 6, mosque: c.mosque.nameAr });
+    expect(v.summary).toMatchObject({ days: 365, adhkar: 10, mosque: c.mosque.nameAr });
     expect(v.backup!.schedule!.days['2026-03-01']).toMatchObject({ fajr: '04:30' });
   });
   it('rejects corrupt or foreign files', () => {

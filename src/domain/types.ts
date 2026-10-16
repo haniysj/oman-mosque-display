@@ -114,11 +114,20 @@ export interface QuietSettings {
   emergencyExit: boolean; // allow a remote/keyboard key to end the current sequence
 }
 
+/** A set of adhkar (e.g. after the prayer, morning, evening) shown after the chosen prayers. */
+export interface AdhkarGroup {
+  id: string;
+  name: string;
+  enabled: boolean;
+  prayers: Record<PrayerKey | 'jumuah', boolean>; // after which prayers this group is shown
+}
+
 export interface AdhkarSettings {
   enabled: boolean;
   minutes: number;
   defaultSeconds: number; // 60 by default
   audio: boolean; // never used unless enabled explicitly (no audio assets bundled)
+  groups: AdhkarGroup[]; // display order = array order
 }
 
 export interface AdhkarItem {
@@ -129,6 +138,7 @@ export interface AdhkarItem {
   seconds: number | null; // null → defaultSeconds
   enabled: boolean;
   order: number;
+  groupId?: string; // AdhkarGroup.id (older items: inferred from the category)
 }
 
 export type DeviceMode = 'auto' | 'tv' | 'desktop' | 'mobile';

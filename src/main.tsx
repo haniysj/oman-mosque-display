@@ -8,6 +8,7 @@ import '@fontsource/cairo/700.css';
 import '@fontsource/cairo/800.css';
 import '@fontsource/amiri/400.css';
 import '@fontsource/amiri/700.css';
+import '@fontsource/noto-naskh-arabic/400.css'; // adhkar text (regular weight)
 import './index.css';
 import App from './App';
 import { loadApp, log } from './store/appStore';

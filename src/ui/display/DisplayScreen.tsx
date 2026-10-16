@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { AppConfig, PrayerKey, PrayerSchedule } from '../../domain/types';
 import { PRAYER_KEYS } from '../../domain/types';
-import { adhkarAt, type DisplayState } from '../../core/engine';
+import { adhkarAt, adhkarForSlot, type DisplayState } from '../../core/engine';
 import { formatClock, formatGregorianAr, toDigits, WEEKDAYS_AR } from '../../core/time';
 import { formatHijriAr, toHijri } from '../../core/hijri';
 import { coverage } from '../../core/timetable';
@@ -168,7 +168,7 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
     return (
       <div className="quiet-screen" onPointerDown={onPointer} aria-label="وقت الصلاة">
         <div className="quiet-clock" style={drift} aria-hidden>
-          <bdi className="num">{qc.text}</bdi>{qc.period && <span className="quiet-period">{qc.period}</span>}
+          <bdi className="num">{qc.text}</bdi>
         </div>
         {simBanner}
       </div>
@@ -346,7 +346,7 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin, onNameTap }: { state: Di
           </svg>
           {cd ? (
             <div className={`countdown ${final ? 'is-final' : ''}`} role="timer">
-              <div className="countdown-clock"><bdi className="num">{clock.text}</bdi> <span>{clock.period}</span></div>
+              <div className="countdown-clock"><bdi className="num">{clock.text}</bdi></div>
               <div className="countdown-label">{eventPhrase(cd.event)} بعد</div>
               <StableDigits className="countdown-digits" text={remainingText(state, cd.event, d.digits)} />
               <div className="countdown-unit">ثانية</div>
@@ -354,7 +354,6 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin, onNameTap }: { state: Di
           ) : (
             <div className="clock" style={{ '--clock-scale': d.clockScale / 100 } as CSSProperties}>
               <div className="clock-row">
-                {clock.period && <span className="clock-period" dir="rtl">{clock.period}</span>}
                 <StableDigits className="clock-time" text={clock.text} />
                 {d.showSeconds && <StableDigits className="clock-sec" text={clock.seconds} />}
               </div>
@@ -454,7 +453,17 @@ function SplitView({ state, cfg, hasSchedule, onNameTap, onOpenAdmin, stage }: {
 
 function SplitAdhkar({ state, cfg, half }: { state: DisplayState; cfg: AppConfig; half: boolean }) {
   const adhkar = useApp((s) => s.adhkar);
-  const a = adhkarAt(adhkar.map((x) => ({ ...x, seconds: cfg.display.splitAdhkarSeconds })), cfg.display.splitAdhkarSeconds, 0, state.now);
+  // the groups of the most recent prayer (morning adhkar after Fajr, evening adhkar after Asr, …)
+  const plan = state.plan;
+  let key: PrayerKey | 'jumuah' | null = null;
+  if (plan) {
+    const passed = (Object.keys(PRAYER_NAMES) as PrayerKey[]).filter((k) => plan.adhan[k] <= state.now);
+    key = passed.length ? passed[passed.length - 1] : 'isha';
+    if (key === 'dhuhr' && plan.isFriday) key = 'jumuah';
+  }
+  let shown = adhkarForSlot(adhkar, cfg.adhkar.groups, key);
+  if (!shown.length) shown = adhkarForSlot(adhkar, cfg.adhkar.groups, null);
+  const a = adhkarAt(shown.map((x) => ({ ...x, seconds: cfg.display.splitAdhkarSeconds })), cfg.display.splitAdhkarSeconds, 0, state.now);
   const item = a.item;
   if (!item) return <div className="split-adhkar split-adhkar--empty">لا توجد أذكار مفعّلة — أضفها من الإعدادات ← الأذكار</div>;
   const len = item.text.length;
@@ -463,7 +472,7 @@ function SplitAdhkar({ state, cfg, half }: { state: DisplayState; cfg: AppConfig
     <div className="split-adhkar" role="region" aria-label="الأذكار">
       <div className="split-adhkar-title">{item.category || 'أذكار'}</div>
       <div key={item.id} className="split-adhkar-body">
-        <FitText text={item.text} base={base} min={30} lines={half ? 9 : 8} className="split-adhkar-text" />
+        <FitText text={item.text} base={base} min={30} lines={half ? 9 : 8} className="split-adhkar-text" lh={1.8} />
         {item.source && <div className="split-adhkar-source">{item.source}</div>}
       </div>
     </div>
@@ -530,7 +539,6 @@ function MobileView({ state, cfg, hasSchedule, controls, onNameTap, fs, embedded
           </div>
         ) : (
           <div className="m-time">
-            {clock.period && <span className="m-time-period">{clock.period}</span>}
             <StableDigits text={clock.text} className="m-time-main" />
             {d.showSeconds && <StableDigits text={clock.seconds} className="m-time-sec" />}
           </div>

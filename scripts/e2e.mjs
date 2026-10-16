@@ -78,6 +78,8 @@ for (const [w, h] of [[1920, 1080], [3840, 2160], [1366, 768], [1024, 768]]) {
       const mid = await p.locator('.tv-foot > :nth-child(2)').boundingBox(); const arch = await p.locator('.mihrab').boundingBox();
       ok(`display-${w}x${h}: footer middle mark under the arch centre`, Math.abs((mid.x + mid.width / 2) - (arch.x + arch.width / 2)) < 2, `${mid.x + mid.width / 2} vs ${arch.x + arch.width / 2}`);
       ok(`display-${w}x${h}: ornament inside the arch`, (await p.locator('.arch-orn .arch-orn-tile').count()) === 1);
+      const txt = await p.locator('.tv').textContent();
+      ok(`display-${w}x${h}: 12-hour times without ص / م`, (await p.locator('.period, .clock-period').count()) === 0 && !/\d\s*[صم](?![\u0600-\u06FF])/.test(txt), (txt.match(/\d\s*[صم](?![\u0600-\u06FF])/) || [''])[0]);
     } });
 }
 for (const [w, h] of [[1920, 1080], [1366, 768]]) {
@@ -136,7 +138,38 @@ await shot(browser, { name: 'adhkar', w: 1920, h: 1080, at: muscat(SAT, '15:40:1
   check: async (p) => {
     ok('adhkar visible', await p.locator('.adhkar-text').isVisible());
     ok('adhkar 2nd item at +70s', (await p.locator('.adhkar-dots span.on').count()) === 1 && (await p.locator('.adhkar-dots span').nth(1).getAttribute('class')) === 'on');
+    ok('adhkar text: regular weight, wide line spacing', (await p.locator('.adhkar-text').evaluate((e) => { const c = getComputedStyle(e); return +c.fontWeight <= 400 && parseFloat(c.lineHeight) / parseFloat(c.fontSize) >= 1.75; })));
   } });
+
+// Adhkar groups (settings): suggested morning adhkar, group shown after chosen prayers, order
+{
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
+  const page = await ctx.newPage(); const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+  await page.clock.install({ time: muscat(SAT, '15:20:00') });
+  await seed(page);
+  await page.evaluate(() => sessionStorage.setItem('omd-admin-tab', 'adhkar'));
+  await adminLogin(ctx);
+  await page.goto(BASE + '/#/admin'); await page.reload(); await page.clock.runFor(800);
+  await adminLogin(ctx, page); await page.clock.runFor(800);
+  const names = await page.locator('input[aria-label="اسم المجموعة"]').evaluateAll((els) => els.map((e) => e.value));
+  ok('adhkar groups: after prayer, morning, evening', names.join('|') === 'أذكار بعد الصلاة|أذكار الصباح|أذكار المساء', names.join('|'));
+  ok('morning group shown after Fajr, evening after Asr', (await page.getByTestId('group-morning').textContent()).includes('بعد صلاة الفجر') && (await page.getByTestId('group-evening').textContent()).includes('بعد صلاة العصر'));
+  const morning = page.getByRole('region', { name: 'أذكار الصباح' });
+  await morning.getByRole('button', { name: 'إضافة الأذكار المقترحة' }).click(); await page.clock.runFor(500);
+  ok('suggested morning adhkar added to the morning group', (await morning.locator('li').count()) === 2);
+  // show the morning group after Asr too, and move it before the after-prayer group
+  await page.getByTestId('group-morning').getByRole('button', { name: 'العصر', exact: true }).click(); await page.clock.runFor(300);
+  await page.getByRole('button', { name: 'تقديم أذكار الصباح' }).click(); await page.clock.runFor(500);
+  const saved = await page.evaluate(async () => { const db = await new Promise((r) => { const q = indexedDB.open('oman-mosque-display', 1); q.onsuccess = () => r(q.result); }); const get = (k) => new Promise((r) => { const g = db.transaction('kv').objectStore('kv').get(k); g.onsuccess = () => r(g.result); }); return { cfg: await get('config'), adhkar: await get('adhkar') }; });
+  ok('group order + prayers saved', saved.cfg.adhkar.groups[0].id === 'morning' && saved.cfg.adhkar.groups[0].prayers.asr === true, JSON.stringify(saved.cfg.adhkar.groups.map((g) => g.id)));
+  ok('morning items saved with their group', saved.adhkar.filter((a) => a.groupId === 'morning').length === 2);
+  await page.screenshot({ path: `${OUT}/admin-adhkar-groups.png`, fullPage: true });
+  // the screen after Asr now starts with the morning group
+  await page.goto(BASE + '/'); await page.clock.setFixedTime(muscat(SAT, '15:39:05')); await page.reload(); await page.clock.runFor(1500);
+  ok('after Asr: first dhikr comes from the morning group (title = group name)', (await page.locator('.adhkar-title').textContent()).includes('أذكار الصباح'), await page.locator('.adhkar-title').textContent());
+  ok('adhkar groups: no JS errors', !errs.length, errs.join('|'));
+  await ctx.close();
+}
 // back to normal after 10 minutes
 await shot(browser, { name: 'after-sequence', w: 1920, h: 1080, at: muscat(SAT, '15:44:01'), ua: TV_UA,
   check: async (p) => ok('returns to main display', await p.locator('.clock-time').isVisible()) });
@@ -156,7 +189,7 @@ await shot(browser, { name: 'high-contrast', w: 1920, h: 1080, at: muscat(SAT, '
   mutate: (b) => { b.config.display.highContrast = true; return b; } });
 
 // Admin panel pages
-for (const tab of ['timetable', 'iqamah', 'friday', 'quiet', 'diagnostics']) {
+for (const tab of ['timetable', 'iqamah', 'friday', 'quiet', 'adhkar', 'diagnostics']) {
   for (const [w, h] of [[390, 844], [1280, 800]]) {
     const ctx = await browser.newContext({ viewport: { width: w, height: h }, serviceWorkers: 'block', isMobile: w < 500, hasTouch: w < 500 });
     const page = await ctx.newPage();
