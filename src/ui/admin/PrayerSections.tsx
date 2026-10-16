@@ -237,10 +237,16 @@ export function QuietSection({ onPreview }: { onPreview: (slot: PrayerKey) => vo
       <Card title="الشاشة السوداء بعد الإقامة">
         <div className="flex flex-col gap-3">
           <Toggle checked={q.enabled} onChange={(v) => set((c) => { c.quiet.enabled = v; })} label="تفعيل الشاشة السوداء" hint="عند حلول وقت الإقامة تختفي جميع العناصر وتصبح الشاشة سوداء تماماً، مع استمرار الحساب الداخلي للوقت." />
-          <Grid>
-            <Field label="المدة"><NumberInput value={q.minutes} min={1} max={60} suffix="دقيقة" onCommit={(v) => set((c) => { c.quiet.minutes = v; })} /></Field>
-            <Field label="مدة الجمعة" hint="تُضبط من قسم «الجمعة»."><div className="flex h-11 items-center text-[15px] font-bold text-ink">{cfg.friday.quietMinutes} دقيقة</div></Field>
-          </Grid>
+          <div className="text-[13px] font-bold text-ink2">مدة بقاء الشاشة السوداء لكل صلاة</div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" data-testid="quiet-minutes">
+            {PRAYER_KEYS.map((k) => (
+              <Field key={k} label={P_AR[k]}>
+                <NumberInput value={q.minutesByPrayer?.[k] ?? q.minutes} min={1} max={60} suffix="دقيقة"
+                  onCommit={(v) => set((c) => { c.quiet.minutesByPrayer = { ...(c.quiet.minutesByPrayer ?? {}), [k]: v }; })} />
+              </Field>
+            ))}
+            <Field label="الجمعة" hint="تُضبط من قسم «الجمعة»."><div className="flex h-11 items-center text-[15px] font-bold text-ink">{cfg.friday.quietMinutes} دقيقة</div></Field>
+          </div>
           <div className="text-[13px] font-bold text-ink2">الصلوات التي تُفعّل الشاشة السوداء والأذكار</div>
           <div className="flex flex-wrap gap-2">
             {([...Object.keys(P_AR), 'jumuah'] as (PrayerKey | 'jumuah')[]).map((k) => (

@@ -108,7 +108,8 @@ export interface HijriSettings {
 
 export interface QuietSettings {
   enabled: boolean;
-  minutes: number;
+  minutes: number; // default length (used for a prayer without its own length)
+  minutesByPrayer?: Partial<Record<PrayerKey, number>>; // e.g. Maghrib 7, Isha 10 (Friday: friday.quietMinutes)
   prayers: Record<PrayerKey | 'jumuah', boolean>;
   mobileException: boolean; // never black-screen on phones (always true by default)
   emergencyExit: boolean; // allow a remote/keyboard key to end the current sequence

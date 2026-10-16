@@ -65,7 +65,7 @@ function TimetablesHome({ onOpen }: { onOpen: (t: Target) => void }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <Note>لكل ولاية جدول مواقيت مستقل محفوظ في المنصة. كل مسجد يأخذ جدول ولايته تلقائياً، وعند اختيار مسجد في ولاية أخرى يتغير الجدول معه.</Note>
+      <Note>لكل ولاية جدول مواقيت مستقل محفوظ في المنصة. الجدول الذي ترفعه يُحفظ لتلك الولاية، وكل مساجد الولاية تأخذه تلقائياً — ما عدا الأيام التي عُدّلت يدوياً لمسجد معيّن (من «مواقيت المسجد») فتبقى كما عُدّلت لذلك المسجد.</Note>
       {!online && <Note tone="warn"><span className="inline-flex items-center gap-1.5"><IconWifiOff size={15} />جداول المنصة تحتاج اتصالاً بالإنترنت. الشاشة تعمل بآخر جدول محفوظ عليها.</span></Note>}
       {err && <Note tone="error">{err}</Note>}
 

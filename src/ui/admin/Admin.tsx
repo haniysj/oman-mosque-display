@@ -10,7 +10,7 @@ import { usePwaStatus } from '../../services/pwa';
 import { BrandMark, IconClose, IconLock, IconWifi, IconWifiOff, IconAlert } from '../common/icons';
 import { InstallAppButton } from './InstallApp';
 import { PasswordSection } from './PasswordSection';
-import { MosqueTargetBar } from './MosqueTargetBar';
+import { MosqueTargetBar, useProfileName, useProfileOpen } from './MosqueTargetBar';
 import { MosqueTimesSection } from './MosqueTimesSection';
 import { resetEditTarget } from './editTarget';
 import { Badge, Btn, Note } from './kit';
@@ -138,12 +138,17 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
   const cloud = useCloud();
   const pwa = usePwaStatus();
   // a mosque supervisor sees «جدول المواقيت» = his mosque's own timetable (view + edit)
-  const tabs = cloud.role === 'mosque' ? TABS.filter((t) => MOSQUE_TABS.includes(t.id)).map((t) => (t.id === 'mosqueTimes' ? { ...t, label: 'جدول المواقيت' as const } : t)) : TABS;
+  const allTabs = cloud.role === 'mosque' ? TABS.filter((t) => MOSQUE_TABS.includes(t.id)).map((t) => (t.id === 'mosqueTimes' ? { ...t, label: 'جدول المواقيت' as const } : t)) : TABS;
+  // two groups: general settings, then the mosque profile pages (a supervisor sees the profile first)
+  const general = allTabs.filter((t) => !PER_MOSQUE.includes(t.id)), profile = allTabs.filter((t) => PER_MOSQUE.includes(t.id));
+  const tabs = cloud.role === 'mosque' ? [...profile, ...general] : [...general, ...profile];
   const [tab, setTab] = useState<TabId>(() => ((t) => (tabs.some((x) => x.id === t) ? t : tabs[0].id))(sessionStorage.getItem('omd-admin-tab') as TabId));
   // a fresh «المسجد الذي تعدّله» for every opening of the settings (before the pages' own effects run)
   useState(() => { resetEditTarget(); return 0; });
   useEffect(() => () => resetEditTarget(), []);
   useEffect(() => { try { sessionStorage.setItem('omd-admin-tab', tab); } catch { /* ignore */ } }, [tab]);
+  const profileOpen = useProfileOpen();
+  const profileName = useProfileName();
   const warnings = useAdminWarnings().filter((w) => tabs.some((t) => t.id === w.tab));
   const [clockWarn, setClockWarn] = useState(false);
 
@@ -166,7 +171,7 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
     if (!rec) { alert('لا توجد مواقيت لهذا اليوم — استورد الجدول أولاً'); return; }
     const plan = buildDayPlan(rec, cfg);
     const slot = (['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'] as PrayerKey[]).find((s) => cfg.quiet.prayers[plan.isFriday && s === 'dhuhr' ? 'jumuah' : s]) ?? 'asr';
-    const quiet = plan.isFriday && slot === 'dhuhr' ? cfg.friday.quietMinutes : cfg.quiet.minutes;
+    const quiet = plan.isFriday && slot === 'dhuhr' ? cfg.friday.quietMinutes : (cfg.quiet.minutesByPrayer?.[slot] ?? cfg.quiet.minutes);
     simulate(plan.iqamah[slot].at + quiet * 60_000 - 3_000, 5);
   };
 
@@ -193,7 +198,7 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
             <BrandMark size={36} />
             <div className="flex min-w-0 flex-col gap-0.5 lg:flex-row lg:items-center lg:gap-3">
               <h1 className="m-0 truncate text-[18px] font-extrabold">إعدادات شاشة المسجد</h1>
-              <span className="inline-flex max-w-[220px] items-center self-start truncate rounded-full bg-teal-soft px-2.5 py-0.5 text-[12px] font-bold text-teal">{cfg.mosque.nameAr || 'بدون اسم'}</span>
+              <span className="inline-flex max-w-[260px] items-center self-start truncate rounded-full bg-teal-soft px-2.5 py-0.5 text-[12px] font-bold text-teal">هذه الشاشة: {cfg.mosque.nameAr || 'بدون اسم'}</span>
             </div>
           </div>
           <div className="flex flex-none items-center gap-2">
@@ -215,11 +220,16 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
       <div className="mx-auto flex max-w-6xl gap-5 px-4 py-4">
         <aside className="no-print hidden w-56 flex-none lg:block">
           <nav className="sticky top-[84px] flex flex-col gap-1" aria-label="الأقسام">
-            {tabs.map((t) => (
-              <button key={t.id} onClick={() => setTab(t.id)} className={`flex h-11 items-center justify-between rounded-xl px-3 text-right text-[14px] font-bold ${tab === t.id ? 'bg-ink text-white' : 'text-ink2 hover:bg-white'}`}>
+            {tabs.map((t, i) => (
+              <div key={t.id} className="contents">
+              {(i === 0 || PER_MOSQUE.includes(t.id) !== PER_MOSQUE.includes(tabs[i - 1].id)) && (
+                <div className={`px-3 pb-1 text-[11.5px] font-extrabold text-muted ${i ? 'mt-3' : ''}`}>{PER_MOSQUE.includes(t.id) ? (profileName ? `ملف المسجد: ${profileName}` : 'ملف المسجد — لكل مسجد على حدة') : 'إعدادات عامة'}</div>
+              )}
+              <button onClick={() => setTab(t.id)} className={`flex h-11 items-center justify-between rounded-xl px-3 text-right text-[14px] font-bold ${tab === t.id ? 'bg-ink text-white' : 'text-ink2 hover:bg-white'}`}>
                 {t.label}
                 {warnings.some((w) => w.tab === t.id) && <span className={`h-2 w-2 rounded-full ${warnings.some((w) => w.tab === t.id && w.tone === 'error') ? 'bg-rose' : 'bg-saffron'}`} />}
               </button>
+              </div>
             ))}
           </nav>
         </aside>
@@ -236,7 +246,7 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
           )}
           <h2 className="no-print m-0 mb-3 text-[20px] font-extrabold">{tabs.find((t) => t.id === tab)?.label}</h2>
           {PER_MOSQUE.includes(tab) && <MosqueTargetBar />}
-          {content[tab]}
+          {(!PER_MOSQUE.includes(tab) || profileOpen) && content[tab]}
           <footer className="no-print mt-8 border-t border-line pt-3 text-center text-[12px] text-muted" dir="ltr">
             Prepared by: Hani Al Ghatrifi · v{typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : ''}
           </footer>

@@ -56,7 +56,7 @@ export function MosqueTimesSection() {
     <div className="flex flex-col gap-4">
       {ui}
       <Card title="مواقيت هذا المسجد" actions={count ? <Badge tone="saffron">{count} يوماً معدّلاً لهذا المسجد</Badge> : <Badge tone="teal">مطابق لجدول الولاية</Badge>}>
-        <Note>المواقيت هنا هي جدول ولاية {locationLabel(loc.governorateId, loc.wilayatId)}. أي تعديل تجريه يصبح خاصاً بهذا المسجد فقط — لا يتغيّر جدول الولاية ولا مواقيت المساجد الأخرى.</Note>
+        <Note>المواقيت هنا هي جدول ولاية {locationLabel(loc.governorateId, loc.wilayatId)}. أي تعديل تجريه يصبح خاصاً بهذا المسجد فقط — لا يتغيّر جدول الولاية ولا مواقيت المساجد الأخرى. وعند رفع جدول جديد للولاية يأخذه هذا المسجد تلقائياً، وتبقى الأيام التي عدّلتها هنا كما هي.</Note>
         {count > 0 && (
           <div className="mt-3">
             <Btn small kind="danger" onClick={() => ask(`إلغاء كل تعديلات المسجد (${count} يوماً) والعودة لجدول الولاية؟`, () => editConfig((c) => { c.timeOverrides = {}; }))}>إلغاء كل تعديلات المسجد</Btn>

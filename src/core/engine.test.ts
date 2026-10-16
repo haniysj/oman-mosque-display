@@ -220,6 +220,18 @@ describe('8–11. quiet mode and adhkar', () => {
     const fIq = at(FRI, '12:20');
     expect(computeState(input(fIq + 11 * MINUTE, { config: c3 })).phase).toBe('quiet');
   });
+  it('each prayer can have its own black-screen length (e.g. Maghrib 7, Isha 10)', () => {
+    const c = cfg();
+    c.quiet.minutesByPrayer = { maghrib: 7, isha: 10 };
+    const plan = buildDayPlan(getDay(yearSchedule(), SAT)!, c);
+    const m = plan.iqamah.maghrib.at, i = plan.iqamah.isha.at;
+    expect(computeState(input(m + 7 * MINUTE - 1, { config: c })).phase).toBe('quiet');
+    expect(computeState(input(m + 7 * MINUTE, { config: c })).phase).not.toBe('quiet');
+    expect(computeState(input(i + 10 * MINUTE - 1, { config: c })).phase).toBe('quiet');
+    expect(computeState(input(i + 10 * MINUTE, { config: c })).phase).not.toBe('quiet');
+    // prayers without their own value keep the general length (5 min)
+    expect(computeState(input(iq + 5 * MINUTE, { config: c })).phase).not.toBe('quiet');
+  });
   it('emergency exit dismisses only the current sequence', () => {
     const st = computeState(input(iq + 10_000));
     const dismissed = new Set([st.sequence!.id]);

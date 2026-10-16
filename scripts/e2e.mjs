@@ -60,6 +60,8 @@ async function shot(browser, { name, w, h, at, ua, mutate, hash = '', isMobile =
 }
 
 const browser = await chromium.launch();
+/** per-mosque pages open a mosque profile first — this unlinked test screen enters its own */
+async function enterLocal(page) { const b = page.getByTestId('enter-local'); if (await b.count()) { await b.click(); await page.clock.runFor(300); } }
 
 // Offline from the real cloud: no mosque exists, so the display keeps the demo data (no auto-linking).
 { const nc = browser.newContext.bind(browser); browser.newContext = async (o) => { const c = await nc(o); await c.route(/supabase\.co\/rest\/v1\/rpc\//, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: /mosque_list|mosque_timetables_summary/.test(r.request().url()) ? '[]' : 'null' })); return c; }; }
@@ -131,6 +133,15 @@ await shot(browser, { name: 'quiet-tv', w: 1920, h: 1080, at: muscat(SAT, '15:35
     ok('quiet: nothing else rendered', (await p.locator('.clock, .panel, .ctrl-bar').count()) === 0);
     ok('quiet: only the time, white-grey', (await p.locator('.quiet-clock').textContent()).includes('3:35') && (await p.locator('.quiet-clock').evaluate((e) => getComputedStyle(e).color)) === 'rgb(207, 207, 207)');
   } });
+await shot(browser, { name: 'quiet-fade', w: 1920, h: 1080, at: muscat(SAT, '15:38:50'), ua: TV_UA,
+  check: async (p) => {
+    ok('quiet: fades in', (await p.locator('.quiet-screen').evaluate((e) => getComputedStyle(e).animationName)) === 'quietIn');
+    let n = 0; while ((await p.locator('.quiet-screen').count()) && n++ < 30) await p.clock.runFor(500);
+    const fo = p.locator('.quiet-fadeout');
+    ok('quiet: fades out when it ends', (await fo.count()) === 1 && (await fo.evaluate((e) => getComputedStyle(e).animationName)) === 'quietOut');
+    await p.clock.runFor(2500);
+    ok('quiet: fade-out layer removed afterwards', (await fo.count()) === 0);
+  } });
 await shot(browser, { name: 'quiet-phone-exception', w: IPHONE.viewport.width, h: IPHONE.viewport.height, at: muscat(SAT, '15:35:00'), ua: IPHONE.userAgent, isMobile: true,
   check: async (p) => ok('phone: no black screen', (await p.locator('.quiet-screen').count()) === 0 && (await p.locator('.m-table').isVisible())) });
 
@@ -152,7 +163,7 @@ await shot(browser, { name: 'adhkar', w: 1920, h: 1080, at: muscat(SAT, '15:40:1
   await page.evaluate(() => sessionStorage.setItem('omd-admin-tab', 'adhkar'));
   await adminLogin(ctx);
   await page.goto(BASE + '/#/admin'); await page.reload(); await page.clock.runFor(800);
-  await adminLogin(ctx, page); await page.clock.runFor(800);
+  await adminLogin(ctx, page); await page.clock.runFor(800); await enterLocal(page);
   const names = await page.locator('input[aria-label="اسم المجموعة"]').evaluateAll((els) => els.map((e) => e.value));
   ok('adhkar groups: after prayer, morning, evening', names.join('|') === 'أذكار بعد الصلاة|أذكار الصباح|أذكار المساء', names.join('|'));
   ok('morning group shown after Fajr, evening after Asr', (await page.getByTestId('group-morning').textContent()).includes('بعد صلاة الفجر') && (await page.getByTestId('group-evening').textContent()).includes('بعد صلاة العصر'));
@@ -203,7 +214,7 @@ for (const tab of ['timetable', 'iqamah', 'friday', 'quiet', 'adhkar', 'diagnost
     await page.goto(BASE + '/#/admin');
     await page.reload();
     await page.clock.runFor(800);
-    await adminLogin(ctx, page); await page.clock.runFor(800);
+    await adminLogin(ctx, page); await page.clock.runFor(800); await enterLocal(page);
     await page.waitForTimeout(300);
     await page.screenshot({ path: `${OUT}/admin-${tab}-${w}.png`, fullPage: true });
     const of = await page.evaluate(() => { const el = document.querySelector('[aria-label="لوحة الإدارة"]'); return el ? el.scrollWidth > el.clientWidth + 1 : false; });
@@ -222,7 +233,8 @@ for (const tab of ['timetable', 'iqamah', 'friday', 'quiet', 'adhkar', 'diagnost
   await page.evaluate(() => sessionStorage.setItem('omd-admin-tab', 'iqamah'));
   await adminLogin(ctx);
   await page.goto(BASE + '/#/admin'); await page.reload(); await page.clock.runFor(800);
-  await adminLogin(ctx, page); await page.clock.runFor(800);
+  await adminLogin(ctx, page); await page.clock.runFor(800); await enterLocal(page);
+  ok('profile: unlinked screen enters its own profile', (await page.getByTestId('profile-bar').textContent()).includes('على هذا الجهاز'));
   const daily = page.getByText('الإقامة اليومية').locator('xpath=ancestor::section[1]');
   const asrBox = daily.locator('div.grid', { has: page.getByText('العصر', { exact: true }) }).first();
   await asrBox.getByText('تثبيت موعد الإقامة').click(); await page.clock.runFor(300);

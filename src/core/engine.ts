@@ -136,7 +136,7 @@ function sequenceFor(plan: DayPlan, slot: SlotKey, input: EngineInput): Sequence
   const isJumuah = slot === 'dhuhr' && plan.isFriday;
   const selected = cfg.quiet.prayers[isJumuah ? 'jumuah' : slot];
   if (!selected) return null;
-  const quietMin = Math.max(0, isJumuah ? cfg.friday.quietMinutes : cfg.quiet.minutes);
+  const quietMin = Math.max(0, isJumuah ? cfg.friday.quietMinutes : (cfg.quiet.minutesByPrayer?.[slot] ?? cfg.quiet.minutes));
   const adhkarKey = isJumuah ? 'jumuah' as const : slot;
   const hasAdhkar = cfg.adhkar.enabled && adhkarForSlot(input.adhkar, cfg.adhkar.groups, adhkarKey).length > 0;
   const adhkarMin = hasAdhkar ? Math.max(0, isJumuah ? cfg.friday.adhkarMinutes : cfg.adhkar.minutes) : 0;

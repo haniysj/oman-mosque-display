@@ -139,6 +139,7 @@ ok('home lists both wilayat tables', homeText.includes('مسقط') && homeText.i
 await p.screenshot({ path: `${OUT}/timetable-home.png` });
 // change Asr iqamah delay to 15
 await p.getByRole('button', { name: 'الإقامة' }).first().click(); await p.clock.runFor(300);
+await p.getByTestId('enter-sq-muscat').click(); await p.clock.runFor(300);
 const asrRow = p.locator('div.grid', { has: p.getByText('العصر', { exact: true }) }).first();
 const inp = asrRow.locator('input[inputmode=numeric]').first(); await inp.fill('15'); await inp.press('Enter');
 await p.clock.runFor(2500);
@@ -242,24 +243,28 @@ ok('stored timetables list wilayat + mosques', wtText.includes('مسقط') && wt
 // 6c) Iqamah page: pick a mosque at the top — edits go to THAT mosque only
 {
   await p.getByRole('button', { name: 'الإقامة' }).first().click(); await p.clock.runFor(1500);
-  const sel = p.locator('select').first();
-  const optTexts = await sel.locator('option').allTextContents();
-  ok('iqamah page: mosque selector lists the mosques', optTexts.some((x) => x.includes('مسجد النور الكبير')) && optTexts.some((x) => x.includes('(هذه الشاشة)')), optTexts.join(' | '));
+  if (await p.getByTestId('profile-bar').count()) { await p.getByRole('button', { name: 'الخروج من ملف المسجد' }).click(); await p.clock.runFor(800); }
+  const picker = p.locator('section[aria-label="اختيار ملف المسجد"]');
+  const pickText = await picker.textContent();
+  ok('profile: per-mosque page asks to enter a mosque profile first', pickText.includes('مسجد النور الكبير') && pickText.includes('هذه الشاشة') && (await p.getByTestId('profile-bar').count()) === 0 && (await p.getByText('العصر', { exact: true }).count()) === 0, pickText.slice(0, 160));
+  const side = await p.locator('aside nav').textContent();
+  ok('profile: sidebar separates «إعدادات عامة» and «ملف المسجد»', side.includes('إعدادات عامة') && side.includes('ملف المسجد'), side);
+  await p.screenshot({ path: `${OUT}/profile-picker.png` });
   const muscatBefore = JSON.stringify(db.mosques.get('sq-muscat').config.iqamah);
   const localAsrBefore = await p.evaluate(async () => {
     const db = await new Promise((res) => { const r = indexedDB.open('oman-mosque-display', 1); r.onsuccess = () => res(r.result); });
     return new Promise((res) => { const g = db.transaction('kv').objectStore('kv').get('config'); g.onsuccess = () => res(g.result.iqamah.rules.asr.delay); });
   });
-  await sel.selectOption('noor-muttrah'); await p.clock.runFor(1500);
-  ok('iqamah page: other mosque loaded (not this screen)', (await p.getByText('ليس مسجد هذه الشاشة').count()) === 1);
+  await p.getByTestId('enter-noor-muttrah').click(); await p.clock.runFor(1500);
+  ok('profile: inside «مسجد النور» with a clear banner', (await p.getByTestId('profile-name').textContent()).includes('مسجد النور') && (await p.getByTestId('profile-bar').textContent()).includes('تُحفظ لهذا المسجد فقط'));
   const asrRow2 = p.locator('div.grid', { has: p.getByText('العصر', { exact: true }) }).first();
   const inp2 = asrRow2.locator('input[inputmode=numeric]').first(); await inp2.fill('25'); await inp2.press('Enter'); await p.clock.runFor(300);
   // freeze Fajr at 05:10 for this mosque only
   const fajrRow = p.locator('div.grid', { has: p.getByText('الفجر', { exact: true }) }).first();
   await fajrRow.locator('input[type=checkbox]').check(); await p.clock.runFor(200);
   await fajrRow.locator('input[type=time]').fill('05:10'); await p.clock.runFor(300);
-  ok('not saved before pressing «حفظ»', db.mosques.get('noor-muttrah').config.iqamah.rules.asr.delay !== 25);
-  await p.getByRole('button', { name: /^حفظ «/ }).click(); await p.clock.runFor(2000);
+  await p.screenshot({ path: `${OUT}/profile-inside.png` });
+  await p.clock.runFor(3000); // saved automatically for this mosque
   const noor = db.mosques.get('noor-muttrah').config.iqamah;
   ok('saved to the chosen mosque (asr 25 + Fajr frozen 05:10)', noor.rules.asr.delay === 25 && noor.locks?.fajr?.enabled === true && noor.locks.fajr.time === '05:10', JSON.stringify({ asr: noor.rules.asr, lock: noor.locks?.fajr }));
   ok('other mosque untouched in the cloud', JSON.stringify(db.mosques.get('sq-muscat').config.iqamah) === muscatBefore);
@@ -274,8 +279,10 @@ ok('stored timetables list wilayat + mosques', wtText.includes('مسقط') && wt
   const iq2 = await t2.locator('.panel').nth(1).textContent();
   ok('mosque TV shows its frozen Fajr iqamah (5:10)', iq2.includes('5:10'), iq2.slice(0, 120));
   await p.bringToFront();
-  // back to this screen's mosque: shows its own values
-  await sel.selectOption('sq-muscat'); await p.clock.runFor(800);
+  // leave the profile, then enter this screen's mosque: shows its own values
+  await p.getByRole('button', { name: 'الخروج من ملف المسجد' }).click(); await p.clock.runFor(800);
+  ok('profile: leaving shows the mosque list again', (await p.locator('section[aria-label="اختيار ملف المسجد"]').count()) === 1);
+  await p.getByTestId('enter-sq-muscat').click(); await p.clock.runFor(800);
   const back = await p.locator('div.grid', { has: p.getByText('العصر', { exact: true }) }).first().locator('input[inputmode=numeric]').first().inputValue();
   ok("switching back shows this mosque's own values", back === String(localAsrBefore), back);
 }
@@ -285,14 +292,16 @@ ok('laptop: still no JS errors', errs.length === 0, errs.join('|'));
 {
   await p.getByRole('button', { name: 'العرض', exact: true }).first().click(); await p.clock.runFor(800);
   const muscatTheme = db.mosques.get('sq-muscat').config.display.theme;
-  await p.locator('section[aria-label="المسجد الذي تعدّله"] select').selectOption('noor-muttrah'); await p.clock.runFor(1500);
+  ok('profile: stays inside the same mosque across pages', (await p.getByTestId('profile-name').textContent()).includes('جامع السلطان قابوس'));
+  await p.getByRole('button', { name: 'الخروج من ملف المسجد' }).click(); await p.clock.runFor(800);
+  await p.getByTestId('enter-noor-muttrah').click(); await p.clock.runFor(1500);
   const themeSel = p.locator('select', { has: p.locator('option', { hasText: 'عنابي' }) }).first();
-  await themeSel.selectOption('maroon'); await p.clock.runFor(300);
-  await p.getByRole('button', { name: /^حفظ «/ }).click(); await p.clock.runFor(1500);
+  await themeSel.selectOption('maroon'); await p.clock.runFor(100);
+  // leaving right away still saves the pending change first
+  await p.getByRole('button', { name: 'الخروج من ملف المسجد' }).click(); await p.clock.runFor(1500);
   ok('display: theme saved for the chosen mosque only', db.mosques.get('noor-muttrah').config.display.theme === 'maroon' && db.mosques.get('sq-muscat').config.display.theme === muscatTheme, `${db.mosques.get('noor-muttrah').config.display.theme} / ${db.mosques.get('sq-muscat').config.display.theme}`);
   const localTheme = await p.evaluate(async () => { const d = await new Promise((r) => { const q = indexedDB.open('oman-mosque-display', 1); q.onsuccess = () => r(q.result); }); return new Promise((r) => { const g = d.transaction('kv').objectStore('kv').get('config'); g.onsuccess = () => r(g.result.display.theme); }); });
   ok("display: this screen's own theme untouched", localTheme !== 'maroon', localTheme);
-  await p.locator('section[aria-label="المسجد الذي تعدّله"] select').selectOption('sq-muscat'); await p.clock.runFor(800);
 }
 
 // 6f) Mosque passwords: set by the general admin; a mosque supervisor edits only that mosque
@@ -314,8 +323,7 @@ ok('laptop: still no JS errors', errs.length === 0, errs.join('|'));
   await q.getByPlaceholder('كلمة المرور', { exact: true }).fill('noor55'); await q.getByRole('button', { name: 'دخول', exact: true }).click(); await q.waitForTimeout(2500);
   const navText = await q.locator('aside nav').textContent();
   ok('mosque supervisor: only this mosque\'s pages (timetable, iqamah, display… — no mosques / passwords)', navText.includes('جدول المواقيت') && navText.includes('الإقامة') && navText.includes('العرض') && !navText.includes('المساجد والمزامنة') && !navText.includes('كلمات المرور'), navText);
-  const opts = await q.locator('section[aria-label="المسجد الذي تعدّله"] select option').allTextContents();
-  ok('mosque supervisor: can pick only «مسجد النور»', opts.length === 1 && opts[0].includes('مسجد النور'), opts.join(' | '));
+  ok('mosque supervisor: enters «مسجد النور» profile directly (no other mosque, no exit)', (await q.getByTestId('profile-name').textContent()).includes('مسجد النور') && (await q.getByRole('button', { name: 'الخروج من ملف المسجد' }).count()) === 0);
   // «جدول المواقيت»: edit today's Fajr for this mosque only
   const todayKey = '2026-10-10';
   const wilBefore = JSON.stringify(db.tables.get('muscat').schedule.days[todayKey]);
@@ -323,7 +331,7 @@ ok('laptop: still no JS errors', errs.length === 0, errs.join('|'));
   const dlg = q.getByRole('dialog', { name: 'تعديل مواقيت يوم' });
   await dlg.locator('input[type=time]').first().fill('04:55'); await dlg.getByRole('button', { name: 'حفظ التعديل' }).click(); await q.waitForTimeout(300);
   ok('timetable: day marked as changed for this mosque', (await q.locator('tr', { has: q.getByRole('button', { name: `تعديل ${todayKey}` }) }).textContent()).includes('المسجد'));
-  await q.getByRole('button', { name: /^حفظ «/ }).click(); await q.waitForTimeout(1500);
+  await q.waitForTimeout(3000);
   ok('timetable: change saved as this mosque\'s own (Fajr 04:55)', db.mosques.get('noor-muttrah').config.timeOverrides?.[todayKey]?.fajr === '04:55', JSON.stringify(db.mosques.get('noor-muttrah').config.timeOverrides));
   ok('timetable: wilayat table and other mosques untouched', JSON.stringify(db.tables.get('muscat').schedule.days[todayKey]) === wilBefore && !db.mosques.get('sq-muscat').config.timeOverrides?.[todayKey]);
   await q.screenshot({ path: `${OUT}/admin-mosque-times.png` });
@@ -331,7 +339,7 @@ ok('laptop: still no JS errors', errs.length === 0, errs.join('|'));
   const asrRow = q.locator('div.grid', { has: q.getByText('العصر', { exact: true }) }).first();
   const inp = asrRow.locator('input[inputmode=numeric]').first(); await inp.fill('30'); await inp.press('Enter'); await q.waitForTimeout(300);
   const before = JSON.stringify(db.mosques.get('sq-muscat').config);
-  await q.getByRole('button', { name: /^حفظ «/ }).click(); await q.waitForTimeout(1500);
+  await q.waitForTimeout(3000);
   ok('mosque supervisor: saved to «مسجد النور» (asr 30)', db.mosques.get('noor-muttrah').config.iqamah.rules.asr.delay === 30 && db.mosques.get('noor-muttrah').config.display.theme === 'maroon');
   ok('mosque supervisor: other mosques untouched', JSON.stringify(db.mosques.get('sq-muscat').config) === before);
   await q.screenshot({ path: `${OUT}/admin-mosque-supervisor.png` });

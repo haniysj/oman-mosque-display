@@ -1,5 +1,5 @@
 /**
- * Which mosque the settings pages are editing.
+ * «ملف المسجد» — the mosque profile the settings pages are editing (like signing into its profile).
  *  - this screen's own mosque (or an unlinked device): edits go live to this device, and are
  *    uploaded to that mosque only when the signed-in person may edit it;
  *  - any other mosque: its settings are loaded from the cloud into a draft and saved to it alone.
@@ -49,7 +49,25 @@ export function ensureTarget() {
   if (!st.target) void selectTarget(defaultTarget());
 }
 
-export function resetEditTarget() { st = { target: '', remote: null, loading: false, saving: false, error: '', msg: '' }; subs.forEach((f) => f()); }
+/** Enter a mosque profile (all per-mosque pages then edit that mosque only). */
+export const enterProfile = (code: string) => selectTarget(code);
+/** Leave the profile: pending changes are saved first, then the mosque list is shown. */
+export async function exitProfile() {
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  if (st.remote?.dirty) await saveTarget();
+  if (st.error) return; // keep the profile open so nothing is lost
+  st = { target: '', remote: null, loading: false, saving: false, error: '', msg: '' }; subs.forEach((f) => f());
+}
+
+// another mosque's profile saves itself shortly after each change
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+const scheduleSave = () => { if (saveTimer) clearTimeout(saveTimer); saveTimer = setTimeout(() => { saveTimer = null; void saveTarget(); }, 1200); };
+
+export function resetEditTarget() {
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  // closing the settings never loses another mosque's pending changes
+  if (st.remote?.dirty) void saveTarget(st.remote);
+  st = { target: '', remote: null, loading: false, saving: false, error: '', msg: '' }; subs.forEach((f) => f()); }
 
 /** Live config of the mosque being edited (this device's config for the local target). */
 export function useEditCfg(): AppConfig {
@@ -79,23 +97,29 @@ export function editConfig(fn: (c: AppConfig) => void) {
   const c = JSON.parse(JSON.stringify(st.remote.cfg)) as AppConfig;
   fn(c);
   put({ remote: { ...st.remote, cfg: c, dirty: true }, msg: '' });
+  scheduleSave();
 }
 export function editAdhkar(list: AdhkarItem[]) {
   if (isLocalTarget(st.target)) { void setAdhkar(list); return; }
   if (!st.remote) return;
   put({ remote: { ...st.remote, adhkar: list.map((a, i) => ({ ...a, order: i })), dirty: true }, msg: '' });
+  scheduleSave();
 }
 
 /** Saves the draft of another mosque: re-reads it and replaces only its settings sections. */
-export async function saveTarget() {
-  const r = st.remote;
+export async function saveTarget(pending?: Remote) {
+  const r = pending ?? st.remote;
   if (!r) return;
   put({ saving: true, error: '', msg: '' });
   try {
     const fresh = await getMosqueConfig(r.code);
     const merged: AppConfig = { ...fresh, iqamah: r.cfg.iqamah, friday: r.cfg.friday, hijri: r.cfg.hijri, quiet: r.cfg.quiet, adhkar: r.cfg.adhkar, timeOverrides: r.cfg.timeOverrides ?? {}, display: { ...fresh.display, ...r.cfg.display } };
     await saveMosqueSettings(r.code, merged, r.adhkar);
-    put({ saving: false, remote: { ...r, cfg: merged, dirty: false }, msg: 'تم الحفظ لهذا المسجد فقط — يصل إلى شاشاته خلال 5 دقائق أو عند فتحها.' });
+    // later edits made while saving stay pending (dirty) and are saved next
+    const latest = st.remote && st.remote.code === r.code ? st.remote : null;
+    const changedMeanwhile = !!latest && (latest.cfg !== r.cfg || latest.adhkar !== r.adhkar);
+    put({ saving: false, remote: latest ? { ...latest, dirty: changedMeanwhile } : st.remote, msg: 'saved' });
+    if (changedMeanwhile) scheduleSave();
   } catch (e) {
     put({ saving: false, error: (e as Error).message });
   }

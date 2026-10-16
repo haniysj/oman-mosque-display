@@ -90,3 +90,5 @@ export const IconMosque = ({ size, ...r }: P) => (
 export const IconStar = ({ size, ...r }: P) => (<svg {...base(size, r)}><path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z" /></svg>);
 export const IconInstall = ({ size, ...r }: P) => (<svg {...base(size, r)}><rect x="6" y="2" width="12" height="20" rx="2.5" /><path d="M12 7v7M9 11l3 3 3-3M10 18.5h4" /></svg>);
 export const IconShareIos = ({ size, ...r }: P) => (<svg {...base(size, r)}><path d="M12 3v12M8 7l4-4 4 4" /><path d="M7 11H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1" /></svg>);
+export const IconLogout = ({ size, ...r }: P) => (<svg {...base(size, r)}><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" /><path d="M10 8l-4 4 4 4" /><path d="M6 12h10" /></svg>);
+export const IconEnter = ({ size, ...r }: P) => (<svg {...base(size, r)}><path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4" /><path d="M14 8l-4 4 4 4" /><path d="M10 12h10" /></svg>);

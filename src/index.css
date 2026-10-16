@@ -538,3 +538,10 @@ button { font-family: inherit; }
 .foot-phone { align-items: center; color: var(--gold-l); perspective: 400px; }
 .foot-phone > * + * { margin-right: 16px; }
 .foot-phone-hint { font-size: 36px; font-weight: 700; color: var(--text); }
+
+/* black screen: gentle fade in, and fade out back to the display */
+.quiet-screen { animation: quietIn 1.4s ease both; }
+@keyframes quietIn { from { opacity: 0; } to { opacity: 1; } }
+.quiet-fadeout { position: fixed; inset: 0; background: #000; z-index: 60; pointer-events: none; animation: quietOut 1.5s ease both; }
+@keyframes quietOut { from { opacity: 1; } to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .quiet-screen, .quiet-fadeout { animation-duration: .01s; } }

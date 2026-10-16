@@ -139,6 +139,19 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
 
   const sim = simulationInfo();
   const cloudCode = useCloud().binding?.code ?? null;
+  // black screen: fades in on its own (CSS); when it ends, a black layer fades out over the screen
+  const prevPhase = useRef(state.phase);
+  const [fadeOut, setFadeOut] = useState(false);
+  useEffect(() => {
+    if (prevPhase.current === 'quiet' && state.phase !== 'quiet') {
+      setFadeOut(true);
+      const t = setTimeout(() => setFadeOut(false), 1600);
+      prevPhase.current = state.phase;
+      return () => clearTimeout(t);
+    }
+    prevPhase.current = state.phase;
+    return undefined;
+  }, [state.phase]);
   const showControls = controls && !(state.phase === 'quiet' && !phone);
 
   const controlBar = fs ? (fsBtn && (
@@ -209,6 +222,7 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
         </Stage>
       )}
       {picker && <MosquePicker current={cloudCode} onClose={() => setPicker(false)} />}
+      {fadeOut && <div className="quiet-fadeout" aria-hidden />}
     </div>
   );
 }
