@@ -113,6 +113,25 @@ export interface QuietSettings {
   prayers: Record<PrayerKey | 'jumuah', boolean>;
   mobileException: boolean; // never black-screen on phones (always true by default)
   emergencyExit: boolean; // allow a remote/keyboard key to end the current sequence
+  /** Extra black-screen periods not tied to a prayer (to save power), e.g. 10 pm → 3 am. */
+  sleep?: SleepSettings;
+}
+
+/** One power-saving period: once (from a date+time to a date+time) or every day (may cross midnight). */
+export interface SleepPeriod {
+  id: string;
+  enabled: boolean;
+  repeat: 'once' | 'daily';
+  fromDate: string; // YYYY-MM-DD (once only)
+  from: string; // HH:MM
+  toDate: string; // YYYY-MM-DD (once only)
+  to: string; // HH:MM
+}
+export interface SleepSettings {
+  enabled: boolean;
+  /** The normal screen returns 10 minutes before each adhan until the prayer's sequence ends. */
+  wakeForPrayers: boolean;
+  periods: SleepPeriod[];
 }
 
 /** A set of adhkar (e.g. after the prayer, morning, evening) shown after the chosen prayers. */

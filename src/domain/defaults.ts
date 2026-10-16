@@ -59,6 +59,7 @@ export function defaultConfig(): AppConfig {
       prayers: { fajr: true, dhuhr: true, asr: true, maghrib: true, isha: true, jumuah: true },
       mobileException: true,
       emergencyExit: true,
+      sleep: { enabled: false, wakeForPrayers: true, periods: [] },
     },
     adhkar: { enabled: true, minutes: 5, defaultSeconds: 60, audio: false, groups: defaultAdhkarGroups() },
     display: {

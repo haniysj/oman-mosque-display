@@ -67,12 +67,13 @@ export function useDisplayState(): { state: DisplayState; device: DeviceClass; p
   }, [state.phase, state.sequence]);
 
   const dismissCurrent = () => {
-    if (!state.sequence) return;
+    const id = state.sequence?.id ?? state.sleep?.id;
+    if (!id) return;
     const next = new Set(dismissed);
-    next.add(state.sequence.id);
+    next.add(id);
     try { sessionStorage.setItem(DISMISS_KEY, JSON.stringify([...next].slice(-20))); } catch { /* ignore */ }
     setDismissed(next);
-    log('warn', `إنهاء يدوي لوضع السكون/الأذكار (${state.sequence.label})`);
+    log('warn', state.sequence ? `إنهاء يدوي لوضع السكون/الأذكار (${state.sequence.label})` : 'إنهاء يدوي لفترة توفير الطاقة');
   };
 
   return { state, device, phone, dismissCurrent };

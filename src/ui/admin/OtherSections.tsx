@@ -375,7 +375,7 @@ export function DiagnosticsSection({ onSimulate }: { onSimulate: (at: number, sp
             ['التاريخ المعتمد', <bdi dir="ltr" key="d">{st.today}</bdi>],
             ['الأذان القادم', st.nextAdhan ? <span key="a">{st.nextAdhan.label} — <bdi dir="ltr">{f(st.nextAdhan.at)}</bdi></span> : '—'],
             ['الإقامة القادمة', st.nextIqamah ? <span key="i">{st.nextIqamah.label} — <bdi dir="ltr">{f(st.nextIqamah.at)}</bdi></span> : '—'],
-            ['حالة العرض', `${PH[st.phase]}${st.suppressedByMobile ? ' (مستثنى: هاتف)' : ''}${st.countdown ? ` · عد تنازلي ${st.countdown.seconds}ث` : ''}`],
+            ['حالة العرض', `${PH[st.phase]}${st.sleep ? ' (توفير الطاقة)' : ''}${st.suppressedByMobile ? ' (مستثنى: هاتف)' : ''}${st.countdown ? ` · عد تنازلي ${st.countdown.seconds}ث` : ''}`],
             ['الاتصال', online ? 'متصل' : 'غير متصل — يعمل محلياً'],
             ['الجدول النشط', schedule ? `${schedule.meta.locationLabel} · v${schedule.meta.version} · ${SOURCE_AR[schedule.meta.source]}` : 'لا يوجد'],
             ['تغطية اليوم', cov.coversToday ? `نعم (+${cov.daysRemaining} يوماً)` : 'لا'],

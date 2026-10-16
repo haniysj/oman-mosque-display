@@ -7,6 +7,7 @@
  * three minutes during the quiet period therefore resumes exactly where it should be,
  * and an event can never fire early because of timer drift or rounding.
  */
+import { activeSleep, SLEEP_WAKE_BEFORE_ADHAN_MS, type SleepWindow } from './sleep';
 import type { AdhkarGroup, AdhkarItem, AppConfig, PrayerKey, PrayerSchedule } from '../domain/types';
 import { PRAYER_KEYS } from '../domain/types';
 import { buildDayPlan, type DayPlan, type SlotKey } from './iqamah';
@@ -60,6 +61,8 @@ export interface DisplayState {
   adhkarCount: number;
   adhkarItemEndsAt: number | null;
   suppressedByMobile: boolean;
+  /** Set while the black screen is a power-saving period (not a prayer). */
+  sleep: SleepWindow | null;
 }
 
 export interface EngineInput {
@@ -236,6 +239,18 @@ export function computeState(input: EngineInput): DisplayState {
     }
   }
 
+  // Power-saving periods: black screen with the clock, except around the prayers
+  let sleep: SleepWindow | null = null;
+  if (!sequence && phase === 'normal') {
+    const w = activeSleep(cfg, now);
+    const wake = cfg.quiet.sleep?.wakeForPrayers !== false;
+    const nearPrayer = wake && [yPlan, tPlan, nPlan].some((p) => !!p && PRAYER_KEYS.some((s) => now >= p.adhan[s] - SLEEP_WAKE_BEFORE_ADHAN_MS && now < p.iqamah[s].at + BADGE_SWITCH_MS));
+    if (w && !nearPrayer && !input.dismissed?.has(w.id)) {
+      if (input.isMobile) suppressedByMobile = true;
+      else { sleep = w; phase = 'quiet'; }
+    }
+  }
+
   let adhkarItem: AdhkarItem | null = null, adhkarIndex = -1, adhkarItemEndsAt: number | null = null;
   const enabled = enabledAdhkar(input.adhkar);
   if (phase === 'adhkar' && sequence) {
@@ -250,7 +265,7 @@ export function computeState(input: EngineInput): DisplayState {
     now, parts, today, plan: tPlan, hijriDate,
     nextAdhan, nextIqamah, nextPrayerSlot, currentIqamahSlot, adhanNowSlot, iqamahNextSlot, iqamahNowSlot,
     countdown, phase, sequence,
-    adhkarItem, adhkarIndex, adhkarCount: enabled.length, adhkarItemEndsAt, suppressedByMobile,
+    adhkarItem, adhkarIndex, adhkarCount: enabled.length, adhkarItemEndsAt, suppressedByMobile, sleep,
   };
 }
 

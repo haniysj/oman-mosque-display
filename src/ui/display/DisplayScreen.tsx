@@ -180,7 +180,7 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
     const m = state.parts.minute; // drift a little every minute (no burn-in on the screen)
     const drift = { transform: `translate(${((m % 5) - 2) * 1.6}vmin, ${(((m * 3) % 5) - 2) * 1.6}vmin)` };
     return (
-      <div className="quiet-screen" onPointerDown={onPointer} aria-label="وقت الصلاة">
+      <div className={`quiet-screen${state.sleep ? ' is-sleep' : ''}`} onPointerDown={onPointer} aria-label={state.sleep ? 'توفير الطاقة' : 'وقت الصلاة'}>
         <div className="quiet-clock" style={drift} aria-hidden>
           <bdi className="num">{qc.text}</bdi>
         </div>

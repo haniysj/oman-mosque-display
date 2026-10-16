@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { AppConfig, IqamahRule, PrayerKey, PrayerSchedule } from '../../domain/types';
+import type { AppConfig, IqamahRule, PrayerKey, PrayerSchedule, SleepPeriod, SleepSettings } from '../../domain/types';
 import { PRAYER_KEYS } from '../../domain/types';
 import { DEFAULT_IQAMAH_DELAYS, defaultConfig } from '../../domain/defaults';
 import { buildDayPlan } from '../../core/iqamah';
@@ -7,7 +7,7 @@ import { addDays, formatTimestamp, muscatDateKey, toDigits, WEEKDAYS_AR, weekday
 import { formatHijriAr, toHijri } from '../../core/hijri';
 import { editConfig, useEditCfg, useEditReady, useEditSchedule } from './editTarget';
 import { now } from '../../services/clock';
-import { Badge, Btn, Card, Field, Grid, Note, NumberInput, Select, TextInput, TimeInput, Toggle } from './kit';
+import { Badge, Btn, Card, DateInput, Field, Grid, Note, NumberInput, Select, TextInput, TimeInput, Toggle } from './kit';
 import { IconPlus, IconRestore, IconTrash } from '../common/icons';
 
 const P_AR: Record<PrayerKey, string> = { fajr: 'الفجر', dhuhr: 'الظهر', asr: 'العصر', maghrib: 'المغرب', isha: 'العشاء' };
@@ -261,6 +261,8 @@ export function QuietSection({ onPreview }: { onPreview: (slot: PrayerKey) => vo
         </div>
       </Card>
 
+      <SleepCard />
+
       <Card title="الأذكار بعد الشاشة السوداء">
         <div className="flex flex-col gap-3">
           <Toggle checked={a.enabled} onChange={(v) => set((c) => { c.adhkar.enabled = v; })} label="عرض الأذكار" />
@@ -280,5 +282,65 @@ export function QuietSection({ onPreview }: { onPreview: (slot: PrayerKey) => vo
         </div>
       </Card>
     </div>
+  );
+}
+
+/** «الشاشة السوداء لتوفير الطاقة»: extra black-screen periods (e.g. 10 pm → 3 am), per mosque. */
+function SleepCard() {
+  const cfg = useEditCfg();
+  const s: SleepSettings = cfg.quiet.sleep ?? { enabled: false, wakeForPrayers: true, periods: [] };
+  const today = muscatDateKey(now());
+  const set = (fn: (x: SleepSettings) => void) => editConfig((c) => {
+    const x: SleepSettings = c.quiet.sleep ? { ...c.quiet.sleep, periods: [...(c.quiet.sleep.periods ?? [])] } : { enabled: false, wakeForPrayers: true, periods: [] };
+    fn(x); c.quiet.sleep = x;
+  });
+  const setP = (id: string, fn: (p: SleepPeriod) => void) => set((x) => { x.periods = x.periods.map((p) => { if (p.id !== id) return p; const q = { ...p }; fn(q); return q; }); });
+  const add = () => set((x) => {
+    x.enabled = true;
+    x.periods.push({ id: `sl-${Date.now().toString(36)}`, enabled: true, repeat: 'once', fromDate: today, from: '22:00', toDate: addDays(today, 1), to: '03:00' });
+  });
+  const valid = (p: SleepPeriod) => p.repeat === 'daily' ? p.from !== p.to : `${p.toDate}T${p.to}` > `${p.fromDate}T${p.from}`;
+  const fmtD = (d: string) => `${WEEKDAYS_AR[weekdayOf(d)]} ${d}`;
+  return (
+    <Card title="الشاشة السوداء لتوفير الطاقة" actions={s.enabled && s.periods.some((p) => p.enabled) ? <Badge tone="teal">مفعّلة</Badge> : <Badge tone="muted">غير مفعّلة</Badge>}>
+      <div className="flex flex-col gap-3" data-testid="sleep-card">
+        <Note>فترات إضافية غير مرتبطة بالصلاة (مثلاً من 10 مساءً حتى 3 فجراً) تتحول فيها الشاشة إلى شاشة سوداء مع بقاء الساعة فقط — مثل الشاشة السوداء بعد الإقامة. خاصة بهذا المسجد.</Note>
+        <Toggle checked={s.enabled} onChange={(v) => set((x) => { x.enabled = v; })} label="تفعيل فترات توفير الطاقة" />
+        <Toggle checked={s.wakeForPrayers !== false} onChange={(v) => set((x) => { x.wakeForPrayers = v; })} label="إظهار الشاشة العادية عند الصلاة" hint="إذا وقع أذان داخل الفترة: تعود الشاشة العادية قبل الأذان بـ 10 دقائق، ثم الشاشة السوداء والأذكار المعتادة، ثم تعود فترة توفير الطاقة." />
+        {s.periods.map((p, i) => (
+          <div key={p.id} className={`rounded-xl border p-3 ${p.enabled ? 'border-teal/50 bg-teal-soft/30' : 'border-line bg-paper'}`} data-testid={`sleep-${i}`}>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <label className="inline-flex items-center gap-2 text-[14px] font-extrabold">
+                <input type="checkbox" className="accent-[#1F7A6D]" checked={p.enabled} onChange={(e) => setP(p.id, (q) => { q.enabled = e.target.checked; })} />
+                الفترة {i + 1}
+              </label>
+              <div className="w-[150px]"><Select value={p.repeat} onChange={(v) => setP(p.id, (q) => { q.repeat = v; })} options={[{ value: 'once', label: 'مرة واحدة' }, { value: 'daily', label: 'يومياً' }]} /></div>
+              <span className="flex-1" />
+              <Btn small kind="danger" onClick={() => set((x) => { x.periods = x.periods.filter((q) => q.id !== p.id); })}><IconTrash size={14} />حذف</Btn>
+            </div>
+            {p.repeat === 'once' ? (
+              <Grid cols={4}>
+                <Field label="من تاريخ"><DateInput value={p.fromDate} onCommit={(v) => setP(p.id, (q) => { q.fromDate = v; if (q.toDate < v) q.toDate = v; })} /></Field>
+                <Field label="من الساعة"><TimeInput value={p.from} allowEmpty={false} onCommit={(v) => setP(p.id, (q) => { q.from = v; })} /></Field>
+                <Field label="إلى تاريخ"><DateInput value={p.toDate} onCommit={(v) => setP(p.id, (q) => { q.toDate = v; })} /></Field>
+                <Field label="إلى الساعة"><TimeInput value={p.to} allowEmpty={false} onCommit={(v) => setP(p.id, (q) => { q.to = v; })} /></Field>
+              </Grid>
+            ) : (
+              <Grid cols={2}>
+                <Field label="من الساعة"><TimeInput value={p.from} allowEmpty={false} onCommit={(v) => setP(p.id, (q) => { q.from = v; })} /></Field>
+                <Field label="إلى الساعة" hint={p.to <= p.from ? 'إلى اليوم التالي' : undefined}><TimeInput value={p.to} allowEmpty={false} onCommit={(v) => setP(p.id, (q) => { q.to = v; })} /></Field>
+              </Grid>
+            )}
+            <p className="m-0 mt-2 text-[12.5px] text-ink2">
+              {!valid(p) ? <span className="font-bold text-rose">وقت النهاية يجب أن يكون بعد وقت البداية.</span>
+                : p.repeat === 'once' ? <>من {fmtD(p.fromDate)} الساعة <bdi>{p.from}</bdi> حتى {fmtD(p.toDate)} الساعة <bdi>{p.to}</bdi>.</>
+                : <>كل يوم من <bdi>{p.from}</bdi> حتى <bdi>{p.to}</bdi>{p.to <= p.from ? ' من اليوم التالي' : ''}.</>}
+            </p>
+          </div>
+        ))}
+        <div><Btn onClick={add}><IconPlus size={15} />إضافة فترة</Btn></div>
+        <Note>الهواتف لا تعرض هذه الشاشة. للخروج منها مؤقتاً: «الخروج الطارئ» (OK ثلاث مرات) إن كان مفعّلاً.</Note>
+      </div>
+    </Card>
   );
 }

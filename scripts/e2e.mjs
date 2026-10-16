@@ -142,6 +142,14 @@ await shot(browser, { name: 'quiet-fade', w: 1920, h: 1080, at: muscat(SAT, '15:
     await p.clock.runFor(2500);
     ok('quiet: fade-out layer removed afterwards', (await fo.count()) === 0);
   } });
+await shot(browser, { name: 'sleep-tv', w: 1920, h: 1080, at: muscat(SAT, '23:10:00'), ua: TV_UA,
+  mutate: (b) => { b.config.quiet.sleep = { enabled: true, wakeForPrayers: true, periods: [{ id: 's1', enabled: true, repeat: 'daily', fromDate: '', from: '22:00', toDate: '', to: '03:00' }] }; return b; },
+  check: async (p) => {
+    ok('power saving: black screen with the clock only', (await p.locator('.quiet-screen[aria-label="توفير الطاقة"]').count()) === 1 && (await p.locator('.quiet-clock').textContent()).includes('11:10') && (await p.locator('.panel').count()) === 0);
+  } });
+await shot(browser, { name: 'sleep-phone', w: IPHONE.viewport.width, h: IPHONE.viewport.height, at: muscat(SAT, '23:10:00'), ua: IPHONE.userAgent, isMobile: true,
+  mutate: (b) => { b.config.quiet.sleep = { enabled: true, wakeForPrayers: true, periods: [{ id: 's1', enabled: true, repeat: 'daily', fromDate: '', from: '22:00', toDate: '', to: '03:00' }] }; return b; },
+  check: async (p) => ok('power saving: phones keep the normal screen', (await p.locator('.quiet-screen').count()) === 0) });
 await shot(browser, { name: 'quiet-phone-exception', w: IPHONE.viewport.width, h: IPHONE.viewport.height, at: muscat(SAT, '15:35:00'), ua: IPHONE.userAgent, isMobile: true,
   check: async (p) => ok('phone: no black screen', (await p.locator('.quiet-screen').count()) === 0 && (await p.locator('.m-table').isVisible())) });
 
@@ -221,6 +229,29 @@ for (const tab of ['timetable', 'iqamah', 'friday', 'quiet', 'adhkar', 'diagnost
     ok(`admin-${tab}-${w}: no errors / overflow`, !errs.length && !of, errs.join('|'));
     await ctx.close();
   }
+}
+
+// Power-saving periods (settings)
+{
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
+  const page = await ctx.newPage(); const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+  await page.clock.install({ time: muscat(SAT, '15:20:00') });
+  await seed(page);
+  await page.evaluate(() => sessionStorage.setItem('omd-admin-tab', 'quiet'));
+  await adminLogin(ctx);
+  await page.goto(BASE + '/#/admin'); await page.reload(); await page.clock.runFor(800);
+  await adminLogin(ctx, page); await page.clock.runFor(800); await enterLocal(page);
+  const card = page.getByTestId('sleep-card');
+  await card.getByRole('button', { name: 'إضافة فترة' }).click(); await page.clock.runFor(300);
+  const t = await card.textContent();
+  ok('power saving: a period 22:00 today → 03:00 tomorrow is added', t.includes('2026-10-10') && t.includes('2026-10-11') && t.includes('22:00') && t.includes('03:00'), t.slice(0, 300));
+  await card.locator('select').first().selectOption('daily'); await page.clock.runFor(300);
+  ok('power saving: daily period crosses midnight', (await card.textContent()).includes('من اليوم التالي'));
+  await card.screenshot({ path: `${OUT}/admin-sleep.png` });
+  const stored = await page.evaluate(async () => { const d = await new Promise((r) => { const q = indexedDB.open('oman-mosque-display', 1); q.onsuccess = () => r(q.result); }); return new Promise((r) => { const g = d.transaction('kv').objectStore('kv').get('config'); g.onsuccess = () => r(g.result.quiet.sleep); }); });
+  ok('power saving: saved in the settings', stored?.enabled === true && stored.periods?.[0]?.repeat === 'daily', JSON.stringify(stored));
+  ok('power saving settings: no JS errors', !errs.length, errs.join('|'));
+  await ctx.close();
 }
 
 // Frozen iqamah: admin locks Asr at 15:45 → the screen shows 3:45 with no marker

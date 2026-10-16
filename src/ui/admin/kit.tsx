@@ -57,6 +57,10 @@ export function TimeInput({ value, onCommit, allowEmpty = true }: { value: strin
   return <input type="time" className={`${inputCls} text-center`} dir="ltr" value={value} onChange={(e) => { if (e.target.value || allowEmpty) onCommit(e.target.value); }} />;
 }
 
+export function DateInput({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
+  return <input type="date" className={`${inputCls} text-center`} dir="ltr" value={value} onChange={(e) => { if (e.target.value) onCommit(e.target.value); }} />;
+}
+
 export function Select<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { value: T; label: string }[] }) {
   return (
     <select className={inputCls} value={value} onChange={(e) => onChange(e.target.value as T)}>
