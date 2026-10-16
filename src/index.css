@@ -490,10 +490,11 @@ button { font-family: inherit; }
 .mihrab, .arch-orn { width: calc(100% - 4px); max-width: 900px; }
 .split--half .tv-main { grid-template-columns: 550px 1fr 550px; grid-column-gap: 24px; column-gap: 24px; }
 
-/* adhkar text: regular weight, more line spacing. Thmanyah (ثمانية) is used when it is installed on the
-   device (its licence does not allow serving it from the site); otherwise Noto Naskh Arabic (OFL). */
+/* adhkar text: Thmanyah Sans (ثمانية, free for websites & apps — font.thmanyah.com), regular weight,
+   more line spacing; bundled locally so it also works offline. */
+@font-face { font-family: 'Thmanyah Sans'; src: url('./assets/fonts/thmanyah-sans-regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
 .adhkar-text, .split-adhkar-text {
-  font-family: 'Thmanyah Serif Text', 'Thmanyah Serif Display', 'Thmanyah Sans', 'thmanyahseriftext', 'Noto Naskh Arabic', 'Amiri', serif;
+  font-family: 'Thmanyah Sans', 'Noto Naskh Arabic', 'Amiri', serif;
   font-weight: 400; letter-spacing: 0;
 }
 
