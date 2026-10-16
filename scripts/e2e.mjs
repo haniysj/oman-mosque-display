@@ -117,7 +117,7 @@ await shot(browser, { name: 'display-long-name', w: 1920, h: 1080, at: muscat(SA
 // Countdown (iqamah at 15:34:00, 45 s before)
 await shot(browser, { name: 'countdown-iqamah', w: 1920, h: 1080, at: muscat(SAT, '15:33:15'), ua: TV_UA,
   check: async (p) => ok('countdown shown ≤60s', (await p.locator('.countdown-digits').textContent())?.includes('00:4')) });
-await shot(browser, { name: 'countdown-61s-none', w: 1920, h: 1080, at: muscat(SAT, '15:32:57'), ua: TV_UA,
+await shot(browser, { name: 'countdown-61s-none', w: 1920, h: 1080, at: muscat(SAT, '15:32:45'), ua: TV_UA,
   check: async (p) => ok('no countdown at 61s', (await p.locator('.countdown').count()) === 0) });
 
 // Quiet black screen at iqamah + 1 min (TV) — and NOT on the phone
@@ -237,13 +237,18 @@ for (const tab of ['timetable', 'iqamah', 'friday', 'quiet', 'adhkar', 'diagnost
   await ctx.close();
 }
 
+await shot(browser, { name: 'footer-normal', w: 1920, h: 1080, at: muscat(SAT, '16:10:00'), ua: TV_UA,
+  check: async (p) => { const foot = await p.locator('.tv-foot').textContent(); ok('footer: «أذان صلاة …» and «إقامة صلاة …»', foot.includes('أذان صلاة المغرب') && foot.includes('إقامة صلاة المغرب'), foot);
+    ok('iqamah list says «الضحى»', (await p.locator('.panel').nth(1).textContent()).includes('الضحى') && !(await p.locator('.panel').nth(1).textContent()).includes('صلاة الضحى')); } });
 // Labels: iqamah rows show only the prayer name; footer shows «أذان صلاة …» and «إقامة صلاة …»
 await shot(browser, { name: 'labels', w: 1920, h: 1080, at: muscat(SAT, '15:20:07'), ua: TV_UA,
   check: async (p) => {
     const names = await p.locator('.panel').nth(1).locator('.row-name').allTextContents();
     ok('iqamah rows without «إقامة»', names.length === 6 && names.every((t) => !t.includes('إقامة')) && names[0].includes('الفجر'), names.join(' | '));
     const foot = await p.locator('.tv-foot').textContent();
-    ok('footer: «أذان صلاة …» and «إقامة صلاة …»', foot.includes('أذان صلاة المغرب') && foot.includes('إقامة صلاة العصر'), foot);
+    ok('TV footer between adhan and iqamah: minutes on the right, «switch off phone» on the left', foot.includes('الإقامة بعد:') && foot.includes('14') && foot.includes('يرجى إغلاق الهاتف النقال'), foot);
+    const r = await p.locator('.foot-iqwait').boundingBox(), l = await p.locator('.foot-phone').boundingBox();
+    ok('TV footer: minutes right, phone left', !!r && !!l && r.x > l.x);
   } });
 
 // Screen shapes: the layout fills landscape screens of any aspect and large portrait screens

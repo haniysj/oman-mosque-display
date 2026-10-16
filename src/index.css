@@ -526,3 +526,14 @@ button { font-family: inherit; }
 .name-frame:not(.name-frame--m) .nf-mid { border-top-width: 12px; border-bottom-width: 12px; }
 .name-frame:not(.name-frame--m) .nf-mid::before { top: -12px; height: 12px; }
 .name-frame:not(.name-frame--m) .nf-mid::after { bottom: -12px; height: 12px; }
+
+/* TV / computer: between the adhan and the iqamah the footer shows the minutes left + «switch off your phone» */
+.foot-iqwait { align-items: center; }
+.foot-iqwait .foot-label { color: var(--muted-d); font-weight: 700; }
+.foot-iq-num { display: inline-flex; align-items: baseline; color: var(--gold-l); font-weight: 800; }
+.foot-iq-num .num { font-size: 76px; line-height: 1; }
+.foot-iq-num small { font-size: 34px; color: var(--gold); font-weight: 700; margin-right: 12px; }
+.foot-iqwait > * + * { margin-right: 20px; }
+.foot-phone { align-items: center; color: var(--gold-l); perspective: 400px; }
+.foot-phone > * + * { margin-right: 16px; }
+.foot-phone-hint { font-size: 36px; font-weight: 700; color: var(--text); }

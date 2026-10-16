@@ -267,6 +267,7 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin, onNameTap }: { state: Di
   const cov = coverage(schedule, state.today);
   const badge = todaySourceBadge(schedule, state.today, cfg);
   const badgeShown = !!badge;
+  const waitMin = plan && state.currentIqamahSlot ? Math.max(1, Math.ceil((plan.iqamah[state.currentIqamahSlot].at - state.now) / 60_000)) : 0;
 
   const prayers = (
     <section className="panel" style={panelStyle} aria-label="الأذان">
@@ -313,7 +314,7 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin, onNameTap }: { state: Di
             if (k !== 'fajr') return [row];
             return [row, (
               <li key="duha" className="row row--duha">
-                <span className="row-name">صلاة الضحى</span>
+                <span className="row-name">الضحى</span>
                 <TimeText ms={plan.duha} cfg={cfg} className="row-time" />
               </li>
             )];
@@ -379,6 +380,20 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin, onNameTap }: { state: Di
           </div>
         ) : !cov.coversToday ? (
           <div className="foot-warn">جدول المواقيت لا يغطي تاريخ اليوم — يرجى تحديث الجدول من الإعدادات</div>
+        ) : plan && state.currentIqamahSlot ? (
+          // between the adhan and the iqamah (as on the phone): minutes to the iqamah on the right,
+          // «please switch off your phone» on the left, the ◇ stays under the middle of the arch
+          <>
+            <div className="foot-item foot-iqwait" role="timer">
+              <span className="foot-label">الإقامة بعد:</span>
+              <span className="foot-iq-num"><bdi className="num">{toDigits(waitMin, d.digits)}</bdi><small>{minutesWord(waitMin)}</small></span>
+            </div>
+            {badgeShown ? <SourceBadge kind={badge} /> : <div className="foot-dot" aria-hidden />}
+            <div className="foot-item foot-phone">
+              <PhoneOffIcon k={waitMin} size={58} />
+              <span className="foot-phone-hint">يرجى إغلاق الهاتف النقال</span>
+            </div>
+          </>
         ) : (
           <>
             <div className="foot-item">
@@ -484,6 +499,18 @@ function SplitAdhkar({ state, cfg, half }: { state: DisplayState; cfg: AppConfig
 const minutesWord = (n: number) => (n === 1 ? 'دقيقة' : n === 2 ? 'دقيقتان' : n >= 3 && n <= 10 ? 'دقائق' : 'دقيقة');
 
 /** Between adhan and iqamah: minutes left (no seconds) and a phone icon that flips every minute. */
+/** Phone with a red slash; flips once every minute (new key), then nudges now and then. */
+function PhoneOffIcon({ k, size }: { k: number; size: number }) {
+  return (
+    <svg key={k} className="m-phone-ico" viewBox="0 0 48 48" width={size} height={size} aria-hidden>
+      <rect x="14" y="5" width="20" height="38" rx="4" fill="none" stroke="currentColor" strokeWidth="2.6" />
+      <path d="M21 9.5h6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+      <circle cx="24" cy="37.5" r="1.8" fill="currentColor" />
+      <path d="M8 40 40 8" stroke="#E46A6A" strokeWidth="3.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function IqamahWait({ minutes, digits }: { minutes: number; digits: AppConfig['display']['digits'] }) {
   return (
     <div className="m-next m-iqwait" role="timer" aria-label={`الإقامة بعد ${minutes} ${minutesWord(minutes)}`}>
@@ -493,12 +520,7 @@ function IqamahWait({ minutes, digits }: { minutes: number; digits: AppConfig['d
           <span className="m-iqwait-num"><bdi className="num">{toDigits(minutes, digits)}</bdi><small>{minutesWord(minutes)}</small></span>
         </span>
         <span className="m-iqwait-phone">
-          <svg key={minutes} className="m-phone-ico" viewBox="0 0 48 48" width="44" height="44" aria-hidden>
-            <rect x="14" y="5" width="20" height="38" rx="4" fill="none" stroke="currentColor" strokeWidth="2.6" />
-            <path d="M21 9.5h6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-            <circle cx="24" cy="37.5" r="1.8" fill="currentColor" />
-            <path d="M8 40 40 8" stroke="#E46A6A" strokeWidth="3.2" strokeLinecap="round" />
-          </svg>
+          <PhoneOffIcon k={minutes} size={44} />
           <span className="m-iqwait-hint">يرجى إغلاق الهاتف النقال</span>
         </span>
       </div>
