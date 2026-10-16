@@ -442,7 +442,10 @@ export function StatsLine({ s }: { s: CalibrationStats }) {
 
 // --------------------------------------------------------------- step 3: view & edit
 
-function Viewer({ schedule, today, title, disabled, onSaveDay }: { schedule: PrayerSchedule; today: string; title: string; disabled: boolean; onSaveDay: (rec: DailyPrayerTimes) => Promise<void> }) {
+export function Viewer({ schedule, today, title, disabled, onSaveDay, heading = '٣. عرض المواقيت وتعديلها', marked, onResetDay, legend }: {
+  schedule: PrayerSchedule; today: string; title: string; disabled: boolean; onSaveDay: (rec: DailyPrayerTimes) => Promise<void>;
+  heading?: string; marked?: (date: string) => boolean; onResetDay?: (date: string) => void; legend?: React.ReactNode;
+}) {
   const [view, setView] = useState<'month' | 'year'>('month');
   const [month, setMonth] = useState(today.slice(0, 7));
   const [editing, setEditing] = useState<DailyPrayerTimes | null>(null);
@@ -458,7 +461,7 @@ function Viewer({ schedule, today, title, disabled, onSaveDay }: { schedule: Pra
   };
 
   return (
-    <Card title="٣. عرض المواقيت وتعديلها" actions={
+    <Card title={heading} actions={
       <>
         <div className="inline-flex rounded-xl border border-line bg-paper p-0.5">
           {(['month', 'year'] as const).map((v) => (
@@ -488,7 +491,8 @@ function Viewer({ schedule, today, title, disabled, onSaveDay }: { schedule: Pra
                     <tr key={d} className={`border-t border-line ${isToday ? 'bg-saffron-soft' : ''} ${weekdayOf(d) === 5 ? 'font-bold' : ''}`}>
                       <td className={`sticky right-0 whitespace-nowrap px-2 py-1.5 ${isToday ? 'bg-saffron-soft' : 'bg-white'}`}>
                         <bdi dir="ltr">{d.slice(8)}</bdi> <span className="text-muted">{WEEKDAYS_AR[weekdayOf(d)]}</span>
-                        {src && src !== 'official' && <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle ${src === 'admin' ? 'bg-ink2' : src === 'calibrated' ? 'bg-teal' : 'bg-saffron'}`} title={SOURCE_AR[src]} />}
+                        {marked?.(d) && <span className="mr-1 inline-block rounded-full bg-[#7C3AED] px-1.5 text-[10px] font-bold text-white align-middle" title="معدّل لهذا المسجد">المسجد</span>}
+                        {!marked?.(d) && src && src !== 'official' && <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle ${src === 'admin' ? 'bg-ink2' : src === 'calibrated' ? 'bg-teal' : 'bg-saffron'}`} title={SOURCE_AR[src]} />}
                       </td>
                       {r ? TIME_KEYS.map((k) => <td key={k} className="px-2 py-1.5 text-center" dir="ltr">{r[k]}</td>)
                         : <td colSpan={6} className="px-2 py-1.5 text-center text-muted">—</td>}
@@ -502,6 +506,7 @@ function Viewer({ schedule, today, title, disabled, onSaveDay }: { schedule: Pra
             </table>
           </div>
           <div className="flex flex-wrap gap-3 text-[12px] text-muted no-print">
+            {legend}
             <span>بدون علامة: رسمي</span>
             <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-teal" />مكمَّل بالمعايرة</span>
             <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-ink2" />معدَّل يدوياً</span>
@@ -534,7 +539,8 @@ function Viewer({ schedule, today, title, disabled, onSaveDay }: { schedule: Pra
               {weekdayOf(editing.date) === 5 && <Field label="بداية الجمعة (اختياري)"><TimeInput value={editing.jumuah ?? ''} onCommit={(v) => setEditing({ ...editing, jumuah: v || undefined })} /></Field>}
             </Grid>
             {err && <div className="mt-3"><Note tone="error"><span className="whitespace-pre-line">{err}</span></Note></div>}
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              {onResetDay && marked?.(editing.date) && <Btn kind="ghost" onClick={() => { onResetDay(editing.date); setEditing(null); setErr(''); }}>إرجاع لجدول الولاية</Btn>}
               <Btn onClick={() => { setEditing(null); setErr(''); }}>إلغاء</Btn>
               <Btn kind="primary" onClick={() => void save()}>حفظ التعديل</Btn>
             </div>

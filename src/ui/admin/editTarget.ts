@@ -93,7 +93,7 @@ export async function saveTarget() {
   put({ saving: true, error: '', msg: '' });
   try {
     const fresh = await getMosqueConfig(r.code);
-    const merged: AppConfig = { ...fresh, iqamah: r.cfg.iqamah, friday: r.cfg.friday, hijri: r.cfg.hijri, quiet: r.cfg.quiet, adhkar: r.cfg.adhkar, display: { ...fresh.display, ...r.cfg.display } };
+    const merged: AppConfig = { ...fresh, iqamah: r.cfg.iqamah, friday: r.cfg.friday, hijri: r.cfg.hijri, quiet: r.cfg.quiet, adhkar: r.cfg.adhkar, timeOverrides: r.cfg.timeOverrides ?? {}, display: { ...fresh.display, ...r.cfg.display } };
     await saveMosqueSettings(r.code, merged, r.adhkar);
     put({ saving: false, remote: { ...r, cfg: merged, dirty: false }, msg: 'تم الحفظ لهذا المسجد فقط — يصل إلى شاشاته خلال 5 دقائق أو عند فتحها.' });
   } catch (e) {

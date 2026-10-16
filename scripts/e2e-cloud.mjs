@@ -313,9 +313,21 @@ ok('laptop: still no JS errors', errs.length === 0, errs.join('|'));
   ok('mosque supervisor: wrong password refused', (await q.getByText('كلمة المرور غير صحيحة').count()) === 1);
   await q.getByPlaceholder('كلمة المرور', { exact: true }).fill('noor55'); await q.getByRole('button', { name: 'دخول', exact: true }).click(); await q.waitForTimeout(2500);
   const navText = await q.locator('aside nav').textContent();
-  ok('mosque supervisor: only this mosque\'s pages (no mosques / timetables / passwords)', navText.includes('الإقامة') && navText.includes('العرض') && !navText.includes('المساجد والمزامنة') && !navText.includes('جدول المواقيت') && !navText.includes('كلمات المرور'), navText);
+  ok('mosque supervisor: only this mosque\'s pages (timetable, iqamah, display… — no mosques / passwords)', navText.includes('جدول المواقيت') && navText.includes('الإقامة') && navText.includes('العرض') && !navText.includes('المساجد والمزامنة') && !navText.includes('كلمات المرور'), navText);
   const opts = await q.locator('section[aria-label="المسجد الذي تعدّله"] select option').allTextContents();
   ok('mosque supervisor: can pick only «مسجد النور»', opts.length === 1 && opts[0].includes('مسجد النور'), opts.join(' | '));
+  // «جدول المواقيت»: edit today's Fajr for this mosque only
+  const todayKey = '2026-10-10';
+  const wilBefore = JSON.stringify(db.tables.get('muscat').schedule.days[todayKey]);
+  await q.getByRole('button', { name: `تعديل ${todayKey}` }).click(); await q.waitForTimeout(300);
+  const dlg = q.getByRole('dialog', { name: 'تعديل مواقيت يوم' });
+  await dlg.locator('input[type=time]').first().fill('04:55'); await dlg.getByRole('button', { name: 'حفظ التعديل' }).click(); await q.waitForTimeout(300);
+  ok('timetable: day marked as changed for this mosque', (await q.locator('tr', { has: q.getByRole('button', { name: `تعديل ${todayKey}` }) }).textContent()).includes('المسجد'));
+  await q.getByRole('button', { name: /^حفظ «/ }).click(); await q.waitForTimeout(1500);
+  ok('timetable: change saved as this mosque\'s own (Fajr 04:55)', db.mosques.get('noor-muttrah').config.timeOverrides?.[todayKey]?.fajr === '04:55', JSON.stringify(db.mosques.get('noor-muttrah').config.timeOverrides));
+  ok('timetable: wilayat table and other mosques untouched', JSON.stringify(db.tables.get('muscat').schedule.days[todayKey]) === wilBefore && !db.mosques.get('sq-muscat').config.timeOverrides?.[todayKey]);
+  await q.screenshot({ path: `${OUT}/admin-mosque-times.png` });
+  await q.getByRole('button', { name: 'الإقامة' }).first().click(); await q.waitForTimeout(800);
   const asrRow = q.locator('div.grid', { has: q.getByText('العصر', { exact: true }) }).first();
   const inp = asrRow.locator('input[inputmode=numeric]').first(); await inp.fill('30'); await inp.press('Enter'); await q.waitForTimeout(300);
   const before = JSON.stringify(db.mosques.get('sq-muscat').config);
@@ -326,6 +338,10 @@ ok('laptop: still no JS errors', errs.length === 0, errs.join('|'));
   ok('mosque supervisor: no JS errors', qerrs.length === 0, qerrs.join('|'));
   await mc.close();
 }
+// the screen of «مسجد النور» shows its own Fajr (4:55); the wilayat's other mosque keeps 4:47
+await t2.bringToFront(); await t2.reload(); await t2.waitForTimeout(2500);
+ok('mosque TV shows the mosque\'s own Fajr time (4:55)', (await t2.locator('.panel').first().textContent()).includes('4:55'));
+await p.bringToFront();
 
 // 6d) Change the administrator password from its own settings page
 {

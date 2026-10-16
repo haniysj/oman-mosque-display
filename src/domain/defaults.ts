@@ -90,6 +90,7 @@ export function defaultConfig(): AppConfig {
       autoClockCorrection: false,
     },
     calc: { profile: null, autoExtend: true, useMosqueCoords: false },
+    timeOverrides: {},
   };
 }
 
@@ -165,6 +166,8 @@ export function mergeConfig(stored: unknown): AppConfig {
   // weekdayRules is a sparse map — take it as stored
   const s = stored as Partial<AppConfig>;
   if (s.iqamah?.weekdayRules) merged.iqamah.weekdayRules = s.iqamah.weekdayRules;
+  // this mosque's own timetable changes — a sparse map, taken as stored
+  merged.timeOverrides = s.timeOverrides && typeof s.timeOverrides === 'object' ? s.timeOverrides : {};
   merged.dataVersion = DATA_VERSION;
   return merged;
 }

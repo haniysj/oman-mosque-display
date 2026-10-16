@@ -11,6 +11,7 @@ import { BrandMark, IconClose, IconLock, IconWifi, IconWifiOff, IconAlert } from
 import { InstallAppButton } from './InstallApp';
 import { PasswordSection } from './PasswordSection';
 import { MosqueTargetBar } from './MosqueTargetBar';
+import { MosqueTimesSection } from './MosqueTimesSection';
 import { resetEditTarget } from './editTarget';
 import { Badge, Btn, Note } from './kit';
 import { TimetableSection, SOURCE_AR, sourceTone } from './TimetableSection';
@@ -22,6 +23,7 @@ import { adminInit, adminLogin, adminLoginOffline, adminStatus, hasOfflineVerifi
 const TABS = [
   { id: 'cloud', label: 'المساجد والمزامنة' },
   { id: 'timetable', label: 'جدول المواقيت' },
+  { id: 'mosqueTimes', label: 'مواقيت المسجد' },
   { id: 'iqamah', label: 'الإقامة' },
   { id: 'friday', label: 'الجمعة' },
   { id: 'hijri', label: 'التاريخ الهجري' },
@@ -34,7 +36,7 @@ const TABS = [
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
 /** Settings that belong to one mosque (edited for the mosque chosen at the top). */
-const PER_MOSQUE: TabId[] = ['iqamah', 'friday', 'hijri', 'quiet', 'adhkar', 'display'];
+const PER_MOSQUE: TabId[] = ['mosqueTimes', 'iqamah', 'friday', 'hijri', 'quiet', 'adhkar', 'display'];
 /** What a mosque supervisor may open. */
 const MOSQUE_TABS: TabId[] = [...PER_MOSQUE, 'diagnostics'];
 
@@ -135,7 +137,8 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
   const online = useOnline();
   const cloud = useCloud();
   const pwa = usePwaStatus();
-  const tabs = cloud.role === 'mosque' ? TABS.filter((t) => MOSQUE_TABS.includes(t.id)) : TABS;
+  // a mosque supervisor sees «جدول المواقيت» = his mosque's own timetable (view + edit)
+  const tabs = cloud.role === 'mosque' ? TABS.filter((t) => MOSQUE_TABS.includes(t.id)).map((t) => (t.id === 'mosqueTimes' ? { ...t, label: 'جدول المواقيت' as const } : t)) : TABS;
   const [tab, setTab] = useState<TabId>(() => ((t) => (tabs.some((x) => x.id === t) ? t : tabs[0].id))(sessionStorage.getItem('omd-admin-tab') as TabId));
   // a fresh «المسجد الذي تعدّله» for every opening of the settings (before the pages' own effects run)
   useState(() => { resetEditTarget(); return 0; });
@@ -170,6 +173,7 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
   const content: Record<TabId, ReactNode> = {
     cloud: <CloudSection />,
     timetable: <TimetableSection />,
+    mosqueTimes: <MosqueTimesSection />,
     iqamah: <IqamahSection />,
     friday: <FridaySection />,
     hijri: <HijriSection />,
@@ -230,7 +234,7 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
               {pwa.updateWaiting && <Note tone="ok">يتوفر إصدار جديد من التطبيق — سيُطبَّق تلقائياً في وقت آمن بعيداً عن مواعيد الصلاة.</Note>}
             </div>
           )}
-          <h2 className="no-print m-0 mb-3 text-[20px] font-extrabold">{TABS.find((t) => t.id === tab)?.label}</h2>
+          <h2 className="no-print m-0 mb-3 text-[20px] font-extrabold">{tabs.find((t) => t.id === tab)?.label}</h2>
           {PER_MOSQUE.includes(tab) && <MosqueTargetBar />}
           {content[tab]}
           <footer className="no-print mt-8 border-t border-line pt-3 text-center text-[12px] text-muted" dir="ltr">

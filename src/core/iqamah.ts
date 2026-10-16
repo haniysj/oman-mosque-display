@@ -50,7 +50,17 @@ function applyRule(date: string, adhanMin: number, adhanTs: number, rule: Iqamah
   return { at: adhanTs + delay * MINUTE, fixed: false };
 }
 
-export function buildDayPlan(rec: DailyPrayerTimes, cfg: AppConfig): DayPlan {
+/** The wilayat's times for one day with this mosque's own changes applied (if any). */
+export function withMosqueTimes(rec: DailyPrayerTimes, cfg: AppConfig): DailyPrayerTimes {
+  const o = cfg.timeOverrides?.[rec.date];
+  if (!o) return rec;
+  const out: DailyPrayerTimes = { ...rec };
+  for (const [k, v] of Object.entries(o)) if (typeof v === 'string' && /^\d{2}:\d{2}$/.test(v)) (out as unknown as Record<string, string>)[k] = v;
+  return out;
+}
+
+export function buildDayPlan(baseRec: DailyPrayerTimes, cfg: AppConfig): DayPlan {
+  const rec = withMosqueTimes(baseRec, cfg);
   const date = rec.date;
   const weekday = weekdayOf(date);
   const isFriday = weekday === 5 && cfg.friday.enabled;

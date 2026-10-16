@@ -202,6 +202,9 @@ export interface AppConfig {
   adhkar: AdhkarSettings;
   display: DisplayPreferences;
   calc: CalcSettings;
+  /** This mosque's own changes to its wilayat timetable: date → times (HH:MM) that replace the
+   *  wilayat's. Never changes the wilayat table or other mosques. */
+  timeOverrides?: Record<string, Partial<Record<TimeKey | 'jumuah', string>>>;
 }
 
 export interface ApplicationBackup {
