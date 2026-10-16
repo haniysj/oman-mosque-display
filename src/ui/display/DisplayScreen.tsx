@@ -9,7 +9,7 @@ import { getState, updateConfig, useApp } from '../../store/appStore';
 import { simulationInfo, stopSimulation } from '../../services/clock';
 import { toggleFullscreen, useFullscreen, useSafeInsets, useWakeLock } from '../../services/platform';
 import { IconExitFullscreen, IconFullscreen, IconSettings, IconStop, IconSun } from '../common/icons';
-import { LightLayer, PatternLayer } from './Background';
+import { ArchOrnament, LightLayer, PatternLayer } from './Background';
 import { eventPhrase, FitText, Pill, remainingText, StableDigits, TimeText } from './parts';
 import { useDisplayState } from './useDisplay';
 import { AdhkarScreen } from './AdhkarScreen';
@@ -338,6 +338,7 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin, onNameTap }: { state: Di
       <main className={`tv-main ${d.panelsSwapped ? 'is-swapped' : ''}`}>
         {prayers}
         <section className="tv-center" aria-live="polite">
+          {!cfg.display.highContrast && <ArchOrnament theme={cfg.display.theme} />}
           <svg className="mihrab" viewBox="0 0 640 660" preserveAspectRatio="none" aria-hidden>
             <path d="M24 652V300C24 150 170 52 320 10 470 52 616 150 616 300V652" />
             <path className="inner" d="M48 652V306C48 172 182 84 320 44 458 84 592 172 592 306V652" />

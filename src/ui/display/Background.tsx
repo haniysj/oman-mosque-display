@@ -64,6 +64,28 @@ function tile(theme: ThemeKey) {
   return { image: `url("data:image/svg+xml,${encodeURIComponent(svg)}")`, size: `${w}px ${h}px` };
 }
 
+/** The theme's pattern drawn a little stronger, for the ornament inside the arch (see ArchOrnament). */
+export function archTile(theme: ThemeKey) {
+  const p = PATTERNS[theme];
+  const ink = THEME_INK[theme];
+  const [w, h] = p.size;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}' viewBox='0 0 ${w} ${h}'><g fill='none' stroke='${ink.stroke}' stroke-opacity='${Math.min(0.5, ink.opacity * 3.2)}' stroke-width='${(p.width ?? 1.1) * 1.15}'>${p.paths}</g></svg>`;
+  return { image: `url("data:image/svg+xml,${encodeURIComponent(svg)}")`, size: `${Math.round(w * 0.72)}px ${Math.round(h * 0.72)}px` };
+}
+
+/**
+ * Light Islamic ornament inside the arch: follows the arch's inner edge and fades out towards the
+ * middle, so the clock, day and dates in the centre stay perfectly clear.
+ */
+export function ArchOrnament({ theme }: { theme: ThemeKey }) {
+  const t = archTile(theme);
+  return (
+    <div className="arch-orn" aria-hidden>
+      <div className="arch-orn-tile" style={{ backgroundImage: t.image, backgroundSize: t.size }} />
+    </div>
+  );
+}
+
 export function PatternLayer({ theme, highContrast }: { theme: Theme; highContrast: boolean }) {
   const t = tile(highContrast ? 'contrast' : theme);
   return <div className="bg-pattern" style={{ backgroundImage: t.image, backgroundSize: t.size }} aria-hidden />;

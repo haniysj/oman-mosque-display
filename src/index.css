@@ -354,3 +354,88 @@ button { font-family: inherit; }
 @supports (height: 100dvh) { .mp-sheet { max-height: calc(100dvh - var(--sa-t) - 24px); } }
 .stage .ctrl-bar { transform: scale(var(--ui-boost, 1)); transform-origin: top left; }
 .adhkar ~ .ctrl-bar { transform-origin: bottom left; }
+
+/* ------------------------------------------------------------------ spacing that works on every browser
+   Older smart-TV browsers (Tizen / webOS, Chrome < 84) ignore `gap` on flex boxes and logical margins
+   (margin-inline-*), so words, separators and ص/م touched each other there. The display uses plain
+   margins instead (identical on new browsers), and a little more room where it was asked for. */
+.tv-head, .row-name, .clock-row, .clock-meta, .clock-dates, .tv-foot, .foot-item, .foot-warn, .adhkar-body, .adhkar-dots,
+.split-adhkar-body, .ctrl-bar, .m-root, .m-head, .m-time, .m-meta, .m-actions, .m-iqwait-count, .m-iqwait-num, .m-iqwait-phone,
+.quiet-clock, .sim-banner { gap: 0; }
+/* right-to-left rows: room on the right of each following item */
+.tv-head > * + *, .tv-foot > * + *, .foot-warn > * + *, .adhkar-dots > * + *, .sim-banner > * + *, .m-head > * + *, .m-iqwait-num > * + *, .quiet-clock > * + * { margin-right: 24px; }
+.tv-head > * + * { margin-right: 28px; }
+.tv-head--center > * + * { margin-right: 0; }
+.adhkar-dots > * + * { margin-right: 18px; }
+.sim-banner > * + * { margin-right: 16px; }
+.m-head > * + * { margin-right: 12px; }
+.m-iqwait-num > * + * { margin-right: 8px; }
+.quiet-clock > * + * { margin-right: 2.4vmin; }
+/* footer countdown: «أذان صلاة المغرب  ◆  بعد 2:24:51» */
+.foot-item > * + * { margin-right: 28px; }
+/* day | divider | dates */
+.clock-meta > * + * { margin-right: 30px; }
+.m-meta > * + * { margin-right: 18px; }
+/* icon / name / badge inside a prayer row */
+.row-name > .sun-ico { margin-left: 14px; }
+.row-name > .row-pill { margin-right: 14px; }
+/* left-to-right rows (clock digits, buttons) */
+.clock-row > * + * { margin-left: 14px; }
+.m-time > * + * { margin-left: 8px; }
+.ctrl-bar > * + * { margin-left: 8px; }
+.m-head .ctrl-bar > * + *, .m-actions > * + * { margin-left: 6px; }
+/* columns */
+.clock-dates > * + * { margin-top: 6px; }
+.adhkar-body > * + * { margin-top: 36px; }
+.split-adhkar-body > * + * { margin-top: 30px; }
+.m-root > * + * { margin-top: 14px; }
+.m-iqwait-count > * + * { margin-top: 2px; }
+.m-iqwait-phone > * + * { margin-top: 4px; }
+.m-head.m-head--center > * + * { margin-right: 0; margin-top: 0; margin-bottom: 6px; }
+/* grids: old syntax first (Chrome 57–65 only knows grid-*-gap) */
+.tv-main { grid-column-gap: 48px; column-gap: 48px; }
+.m-next { grid-row-gap: 6px; row-gap: 6px; }
+/* time ↔ ص / م (physical margin: logical margins are unknown to old TVs) */
+.row-time .period, .countdown-clock span { margin-inline-start: 0; margin-right: 16px; }
+.m-table td .period { margin-inline-start: 0; margin-right: 7px; }
+
+/* ------------------------------------------------------------------ larger adhan / iqamah panels */
+.panel-title { font-size: calc(40px * var(--panel-scale) * var(--panel-boost, 1)); }
+.row-name { font-size: calc(50px * var(--panel-scale) * var(--panel-boost, 1)); }
+.row-time { font-size: calc(58px * var(--panel-scale) * var(--panel-boost, 1)); }
+.row--sunrise .row-name { font-size: calc(44px * var(--panel-scale) * var(--panel-boost, 1)); }
+.row-pill { font-size: calc(20px * var(--panel-boost, 1)); }
+/* half screen: wider panels, bigger words; the badge goes under the prayer name */
+.split--half .tv-main { grid-template-columns: 560px 1fr 560px; grid-column-gap: 32px; column-gap: 32px; }
+.split--half .panel { --panel-boost: 1.22; }
+.split--half .row { padding: 0 10px; }
+.split--half .row-name { flex-direction: column; align-items: flex-start; line-height: 1.15; }
+.split--half .row-name > .row-pill { margin-right: 0; margin-top: 4px; }
+.split--half .row--sunrise .row-name { flex-direction: row; align-items: center; }
+.split--half .countdown-digits { font-size: 168px; }
+.split--half .countdown.is-final .countdown-digits { font-size: 184px; }
+/* third of the screen: bigger table */
+.split-times-inner .m-table { font-size: 22px; }
+.split-times-inner .m-table th, .split-times-inner .m-table td { padding-top: 8px; padding-bottom: 8px; }
+.split-times-inner .m-table thead th { font-size: 17px; }
+.split-times-inner .m-table tbody th.m-col-name { font-size: 24px; }
+.split-times-inner .m-table td .period { font-size: 15px; }
+.split-times-inner .m-table tr.is-sunrise th, .split-times-inner .m-table tr.is-sunrise td { font-size: 20px; }
+.split--half .tv.is-countdown .countdown-digits { font-size: 220px; }
+.split--half .tv.is-countdown .countdown.is-final .countdown-digits { font-size: 232px; }
+
+/* ------------------------------------------------------------------ ornament inside the arch
+   Same box as the arch outline; clipped to the arch's inner shape, strongest along its edges and
+   fading out towards the middle (clock / day / dates stay clean). -webkit- masks work on old TVs too. */
+.arch-orn { position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); width: calc(100% - 16px); max-width: 760px; pointer-events: none;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 660' preserveAspectRatio='none'%3E%3Cpath d='M48 660V306C48 172 182 84 320 44 458 84 592 172 592 306V660Z' fill='black'/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 660' preserveAspectRatio='none'%3E%3Cpath d='M48 660V306C48 172 182 84 320 44 458 84 592 172 592 306V660Z' fill='black'/%3E%3C/svg%3E");
+  -webkit-mask-size: 100% 100%; mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; }
+.arch-orn-tile { position: absolute; top: 0; right: 0; bottom: 0; left: 0; background-position: center top;
+  -webkit-mask-image: radial-gradient(ellipse at 50% 62%, transparent 38%, rgba(0,0,0,.45) 62%, #000 92%);
+  mask-image: radial-gradient(ellipse at 50% 62%, transparent 38%, rgba(0,0,0,.45) 62%, #000 92%); }
+.theme-minimal .arch-orn-tile { opacity: .7; }
+
+/* ------------------------------------------------------------------ footer: the ◇ (or badge) always under the middle of the arch */
+.tv-foot > .foot-item { flex: 1 1 0; min-width: 0; }
+.tv-foot > .foot-item:last-child { justify-content: flex-end; }
+.tv-foot > .foot-dot, .tv-foot > .source-badge { flex: none; }

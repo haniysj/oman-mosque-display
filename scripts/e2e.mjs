@@ -75,6 +75,17 @@ for (const [w, h] of [[1920, 1080], [3840, 2160], [1366, 768], [1024, 768]]) {
       ok(`display-${w}x${h}: demo badge`, await p.locator('.source-badge--demo').isVisible());
       const nb = await p.locator('.tv-name').boundingBox(); const bb = await p.locator('.source-badge').boundingBox();
       ok(`display-${w}x${h}: badge clear of name`, !(nb && bb && bb.y < nb.y + nb.height && bb.y + bb.height > nb.y));
+      const mid = await p.locator('.tv-foot > :nth-child(2)').boundingBox(); const arch = await p.locator('.mihrab').boundingBox();
+      ok(`display-${w}x${h}: footer middle mark under the arch centre`, Math.abs((mid.x + mid.width / 2) - (arch.x + arch.width / 2)) < 2, `${mid.x + mid.width / 2} vs ${arch.x + arch.width / 2}`);
+      ok(`display-${w}x${h}: ornament inside the arch`, (await p.locator('.arch-orn .arch-orn-tile').count()) === 1);
+    } });
+}
+for (const [w, h] of [[1920, 1080], [1366, 768]]) {
+  await shot(browser, { name: `foot-dot-${w}x${h}`, w, h, at: muscat(SAT, '15:20:07'), ua: TV_UA,
+    mutate: (b) => { b.schedule.meta.source = 'official'; for (const d of Object.values(b.schedule.days)) d.source = 'official'; return b; },
+    check: async (p) => {
+      const dot = await p.locator('.tv-foot > .foot-dot').boundingBox(); const arch = await p.locator('.mihrab').boundingBox();
+      ok(`foot-dot-${w}x${h}: ◇ exactly under the arch centre`, !!dot && Math.abs((dot.x + dot.width / 2) - (arch.x + arch.width / 2)) < 2, dot ? `${dot.x + dot.width / 2} vs ${arch.x + arch.width / 2}` : 'no dot');
     } });
 }
 for (const [name, dev] of [['phone-390x844', IPHONE], ['phone-375x667', devices['iPhone SE']]]) {
