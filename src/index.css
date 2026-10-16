@@ -439,3 +439,39 @@ button { font-family: inherit; }
 .tv-foot > .foot-item { flex: 1 1 0; min-width: 0; }
 .tv-foot > .foot-item:last-child { justify-content: flex-end; }
 .tv-foot > .foot-dot, .tv-foot > .source-badge { flex: none; }
+
+/* ------------------------------------------------------------------ phone: mosaic bands at the top and bottom */
+.edge-orn { position: absolute; left: 0; right: 0; height: 24vh; max-height: 230px; min-height: 120px; pointer-events: none; background-repeat: repeat; }
+.edge-orn--top { top: 0; background-position: center top;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,.55) 40%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,.55) 40%, transparent 100%); }
+.edge-orn--bottom { bottom: 0; background-position: center bottom;
+  -webkit-mask-image: linear-gradient(to top, #000 0%, rgba(0,0,0,.55) 40%, transparent 100%);
+  mask-image: linear-gradient(to top, #000 0%, rgba(0,0,0,.55) 40%, transparent 100%); }
+.theme-minimal .edge-orn { opacity: .7; }
+/* keep the countdown boxes perfectly readable over the bottom band */
+.m-next:not(.m-iqwait) > div, .m-next.m-iqwait { background-color: rgba(0, 0, 0, .34); }
+.edge-orn--bottom { opacity: .85; }
+
+/* ------------------------------------------------------------------ «نهاري فاتح»: light beige daytime theme
+   Dark text on warm beige, bronze accents, a light Islamic pattern. Everything that was drawn light-on-dark
+   is turned around here. */
+.display-root.theme-sand {
+  --bg1: #E9DCC3; --bg2: #F3EAD8; --bg3: #FBF6EC;
+  --gold: #9A6B1F; --gold-l: #5E3F0E; --text: #2B2115; --muted-d: #6E5E48;
+  --line-d: rgba(122, 86, 30, .26); --hi: rgba(154, 107, 31, .12); --hi-line: #9A6B1F;
+  --cd: #A8650A; --cd-glow: rgba(214, 150, 40, .35); --cd-final: #7A3E00;
+}
+.display-root.theme-sand.is-friday { --hi: rgba(154, 107, 31, .17); }
+.theme-sand .row-pill--gold, .theme-sand .m-tag { background: #9A6B1F; color: #FFF8EA; }
+.theme-sand .row-pill--ivory, .theme-sand .m-tag--now { background: #E6CC97; color: #3D2A0A; }
+.theme-sand .ctrl-btn { background: rgba(255, 255, 255, .55); color: #6B4A14; }
+.theme-sand .ctrl-btn:hover { background: rgba(255, 255, 255, .85); }
+.theme-sand .m-pick { background: rgba(255, 255, 255, .5); }
+.theme-sand .source-badge { background: rgba(224, 154, 45, .16); color: #7A4E08; border-color: rgba(176, 112, 20, .45); }
+.theme-sand .source-badge--demo { background: rgba(194, 69, 58, .1); color: #9B2C22; border-color: rgba(194, 69, 58, .45); }
+.theme-sand .foot-warn { color: #8A4B06; }
+.theme-sand .m-next:not(.m-iqwait) > div, .theme-sand .m-next.m-iqwait { background-color: rgba(255, 252, 245, .72); }
+.theme-sand .arch-orn-tile { opacity: .6; }
+.theme-sand .edge-orn { opacity: .55; }
+.theme-sand .countdown-digits, .theme-sand .m-count-digits { text-shadow: none; }

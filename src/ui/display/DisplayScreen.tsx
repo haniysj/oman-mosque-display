@@ -9,7 +9,7 @@ import { getState, updateConfig, useApp } from '../../store/appStore';
 import { simulationInfo, stopSimulation } from '../../services/clock';
 import { toggleFullscreen, useFullscreen, useSafeInsets, useWakeLock } from '../../services/platform';
 import { IconExitFullscreen, IconFullscreen, IconSettings, IconStop, IconSun } from '../common/icons';
-import { ArchOrnament, LightLayer, PatternLayer } from './Background';
+import { ArchOrnament, EdgeOrnament, LightLayer, PatternLayer } from './Background';
 import { eventPhrase, FitText, Pill, remainingText, StableDigits, TimeText } from './parts';
 import { useDisplayState } from './useDisplay';
 import { AdhkarScreen } from './AdhkarScreen';
@@ -180,6 +180,7 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
       <div className="bg-base" aria-hidden />
       <PatternLayer theme={cfg.display.theme} highContrast={cfg.display.highContrast} />
       <LightLayer mode={cfg.display.background} intensity={cfg.display.highContrast ? Math.min(30, cfg.display.animationIntensity) : cfg.display.animationIntensity} theme={cfg.display.highContrast ? 'contrast' : cfg.display.theme} />
+      {portrait && !(state.phase === 'adhkar' && !phone) && !cfg.display.highContrast && <EdgeOrnament theme={cfg.display.theme} />}
       {simBanner}
       {portrait && state.phase === 'adhkar' && !phone ? (
         // large portrait screen (vertical TV): adhkar on a tall stage

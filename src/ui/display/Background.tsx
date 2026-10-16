@@ -31,6 +31,8 @@ const PATTERNS: Record<ThemeKey, PatternDef> = {
   // Overlapping circles (seed of the girih rosette)
   turquoise: { size: [80, 138.56], paths: `<circle cx='40' cy='0' r='40'/><circle cx='0' cy='69.28' r='40'/><circle cx='80' cy='69.28' r='40'/><circle cx='40' cy='138.56' r='40'/><circle cx='40' cy='69.28' r='40'/><circle cx='40' cy='69.28' r='6'/>` },
   // Zellige — octagons and squares with eight-point centres
+  // Daylight: eight-pointed khatam stars linked by small squares (light carved-plaster look)
+  sand: { size: [110, 110], width: 1.2, paths: `<path d='${star(55, 55, 8, 34, 3)}'/><path d='${ngon(55, 55, 8, 20, Math.PI / 8)}'/><path d='${ngon(0, 0, 4, 15, Math.PI / 4)}'/><path d='${ngon(110, 0, 4, 15, Math.PI / 4)}'/><path d='${ngon(0, 110, 4, 15, Math.PI / 4)}'/><path d='${ngon(110, 110, 4, 15, Math.PI / 4)}'/><path d='M0 55 21 55M89 55 110 55M55 0 55 21M55 89 55 110'/>` },
   amethyst: { size: [100, 100], paths: `<path d='${ngon(50, 50, 8, 38, Math.PI / 8)}'/><path d='${ngon(0, 0, 4, 13.6, Math.PI / 4)}'/><path d='${ngon(100, 0, 4, 13.6, Math.PI / 4)}'/><path d='${ngon(0, 100, 4, 13.6, Math.PI / 4)}'/><path d='${ngon(100, 100, 4, 13.6, Math.PI / 4)}'/><path d='${star(50, 50, 8, 22, 3)}'/>` },
   // High contrast — light, sparse eight-point stars
   contrast: { size: [160, 160], paths: `<path d='${star(80, 80, 8, 30, 3)}'/>` },
@@ -44,6 +46,7 @@ export const THEME_INK: Record<ThemeKey, { stroke: string; opacity: number; ligh
   maroon: { stroke: '#E0A46B', opacity: 0.15, light: '246,206,160' },
   turquoise: { stroke: '#F2D9A0', opacity: 0.12, light: '214,246,238' },
   amethyst: { stroke: '#D8C3F0', opacity: 0.12, light: '232,218,250' },
+  sand: { stroke: '#8A6326', opacity: 0.14, light: '176,128,52' },
   contrast: { stroke: '#FFFFFF', opacity: 0.07, light: '255,255,255' },
 };
 
@@ -53,6 +56,7 @@ export const THEME_LABELS: Record<Theme, string> = {
   maroon: 'عنابي ونحاسي — ربع الحزب',
   turquoise: 'فيروزي ورملي — دوائر متداخلة',
   amethyst: 'بنفسجي وفضي — زليج مثمّن',
+  sand: 'نهاري فاتح — بيج ونقش خاتم خفيف',
   minimal: 'فحمي وفضي — نجمة سداسية',
 };
 
@@ -114,6 +118,21 @@ export function ArchOrnament({ theme }: { theme: ThemeKey }) {
     <div className="arch-orn" aria-hidden>
       <div className="arch-orn-tile" style={{ backgroundImage: t.image, backgroundSize: t.size }} />
     </div>
+  );
+}
+
+/**
+ * Phone layout: the same zellige mosaic as a band along the top and the bottom of the screen,
+ * fading out (linear gradient) towards the inside so the times stay clear.
+ */
+export function EdgeOrnament({ theme }: { theme: ThemeKey }) {
+  const t = archMosaic(theme);
+  const style = { backgroundImage: t.image, backgroundSize: t.size };
+  return (
+    <>
+      <div className="edge-orn edge-orn--top" style={style} aria-hidden />
+      <div className="edge-orn edge-orn--bottom" style={style} aria-hidden />
+    </>
   );
 }
 

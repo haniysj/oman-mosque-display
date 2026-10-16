@@ -132,7 +132,7 @@ export interface AdhkarItem {
 }
 
 export type DeviceMode = 'auto' | 'tv' | 'desktop' | 'mobile';
-export type Theme = 'ornamental' | 'minimal' | 'navy' | 'maroon' | 'turquoise' | 'amethyst';
+export type Theme = 'ornamental' | 'minimal' | 'navy' | 'maroon' | 'turquoise' | 'amethyst' | 'sand';
 export type Background = 'static' | 'animated';
 export type DigitStyle = 'arabic' | 'western';
 
