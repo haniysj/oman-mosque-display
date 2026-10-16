@@ -475,3 +475,11 @@ button { font-family: inherit; }
 .theme-sand .arch-orn-tile { opacity: .6; }
 .theme-sand .edge-orn { opacity: .55; }
 .theme-sand .countdown-digits, .theme-sand .m-count-digits { text-shadow: none; }
+
+/* lighter, more transparent mosaic (arch + phone bands) */
+.arch-orn-tile { opacity: .62; }
+.edge-orn, .edge-orn--bottom { opacity: .48; }
+.theme-sand .arch-orn-tile { opacity: .4; }
+.theme-sand .edge-orn, .theme-sand .edge-orn--bottom { opacity: .34; }
+.theme-minimal .arch-orn-tile { opacity: .45; }
+.theme-minimal .edge-orn { opacity: .34; }
