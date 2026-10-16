@@ -64,13 +64,44 @@ function tile(theme: ThemeKey) {
   return { image: `url("data:image/svg+xml,${encodeURIComponent(svg)}")`, size: `${w}px ${h}px` };
 }
 
-/** The theme's pattern drawn a little stronger, for the ornament inside the arch (see ArchOrnament). */
-export function archTile(theme: ThemeKey) {
-  const p = PATTERNS[theme];
+/**
+ * Mosaic for the arch ornament: twelve-pointed star rosettes on a hexagonal grid, with petal rings,
+ * three-armed (Y) links between every three rosettes and small six-pointed stars between neighbours
+ * — the classic zellige layout, drawn in the theme's own colours (several tones, filled + outlined).
+ */
+export function archMosaic(theme: ThemeKey) {
   const ink = THEME_INK[theme];
-  const [w, h] = p.size;
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}' viewBox='0 0 ${w} ${h}'><g fill='none' stroke='${ink.stroke}' stroke-opacity='${Math.min(0.5, ink.opacity * 3.2)}' stroke-width='${(p.width ?? 1.1) * 1.15}'>${p.paths}</g></svg>`;
-  return { image: `url("data:image/svg+xml,${encodeURIComponent(svg)}")`, size: `${Math.round(w * 0.72)}px ${Math.round(h * 0.72)}px` };
+  const A = 97, H = 168; // hexagonal lattice: H ≈ A·√3 so the tile repeats without seams
+  const out: string[] = [];
+  const P = (x: number, y: number, r: number, a: number): [number, number] => [x + r * Math.cos(a), y + r * Math.sin(a)];
+  const lattice: [number, number][] = [];
+  for (let j = -2; j <= 4; j++) for (let i = -2; i <= 3; i++) lattice.push([i * A + (j & 1 ? A / 2 : 0), (j * H) / 2]);
+  const star12: string[] = [], petals: string[] = [], rings: string[] = [], links: string[] = [], small: string[] = [];
+  for (const [x, y] of lattice) {
+    star12.push(star(x, y, 12, A * 0.17, 5));
+    for (let k = 0; k < 12; k++) {
+      const t = (Math.PI * 2 * k) / 12 - Math.PI / 2;
+      petals.push(poly([P(x, y, A * 0.19, t), P(x, y, A * 0.29, t - 0.2), P(x, y, A * 0.37, t), P(x, y, A * 0.29, t + 0.2)]));
+    }
+    rings.push(ngon(x, y, 12, A * 0.41, Math.PI / 12));
+    // small six-pointed stars half-way to the three "forward" neighbours
+    for (const [dx, dy] of [[A / 2, 0], [A / 4, H / 4], [-A / 4, H / 4]] as [number, number][]) small.push(poly(Array.from({ length: 12 }, (_, q) => P(x + dx, y + dy, q % 2 ? A * 0.05 : A * 0.09, (Math.PI * q) / 6 - Math.PI / 2))));
+    // Y links at the centres of the two triangles below/right of this point
+    for (const [cx, cy, rot] of [[x + A / 2, y + H / 6, Math.PI / 2], [x, y + H / 3, -Math.PI / 2]] as [number, number, number][]) {
+      for (let k = 0; k < 3; k++) {
+        const t = rot + (Math.PI * 2 * k) / 3, w = 0.55, L = A * 0.21;
+        links.push(poly([P(cx, cy, A * 0.05, t - 1.0), P(cx, cy, L, t - w * 0.45), P(cx, cy, L * 1.08, t), P(cx, cy, L, t + w * 0.45), P(cx, cy, A * 0.05, t + 1.0)]));
+      }
+    }
+  }
+  const lt = `rgb(${ink.light})`;
+  out.push(`<g fill='${lt}' fill-opacity='.20' stroke='${lt}' stroke-opacity='.45' stroke-width='.9'><path d='${petals.join('')}'/></g>`);
+  out.push(`<g fill='none' stroke='${ink.stroke}' stroke-opacity='.55' stroke-width='1.1'><path d='${rings.join('')}'/></g>`);
+  out.push(`<g fill='${ink.stroke}' fill-opacity='.38' stroke='${ink.stroke}' stroke-opacity='.6' stroke-width='.9'><path d='${links.join('')}'/></g>`);
+  out.push(`<g fill='${lt}' fill-opacity='.42'><path d='${small.join('')}'/></g>`);
+  out.push(`<g fill='${ink.stroke}' fill-opacity='.62' stroke='${lt}' stroke-opacity='.5' stroke-width='.8'><path d='${star12.join('')}'/></g>`);
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${A}' height='${H}' viewBox='0 0 ${A} ${H}'>${out.join('')}</svg>`;
+  return { image: `url("data:image/svg+xml,${encodeURIComponent(svg)}")`, size: `${A}px ${H}px` };
 }
 
 /**
@@ -78,7 +109,7 @@ export function archTile(theme: ThemeKey) {
  * middle, so the clock, day and dates in the centre stay perfectly clear.
  */
 export function ArchOrnament({ theme }: { theme: ThemeKey }) {
-  const t = archTile(theme);
+  const t = archMosaic(theme);
   return (
     <div className="arch-orn" aria-hidden>
       <div className="arch-orn-tile" style={{ backgroundImage: t.image, backgroundSize: t.size }} />
