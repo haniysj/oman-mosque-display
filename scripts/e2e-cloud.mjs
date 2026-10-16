@@ -16,6 +16,7 @@ function handle(fn, a) {
     case 'mosque_admin_status': return { initialized: !!db.pw };
     case 'mosque_admin_init': if (db.pw) throw 'ALREADY_INITIALIZED'; db.pw = a.p_password; return true;
     case 'mosque_admin_login': auth(); return true;
+    case 'mosque_admin_change_password': if (a.p_old !== db.pw) throw 'BAD_PASSWORD'; if (!a.p_new || a.p_new.length < 6) throw 'PASSWORD_TOO_SHORT'; db.pw = a.p_new; return true;
     case 'mosque_default_get': { const m = db.def && db.mosques.get(db.def); return m ? { code: m.code, name_ar: m.name_ar, governorate_id: m.governorate_id, wilayat_id: m.wilayat_id } : null; }
     case 'mosque_admin_set_default': auth(); if (a.p_code && !db.mosques.has(a.p_code)) throw 'mosque_not_found'; db.def = a.p_code || null; return true;
     case 'mosque_list': return [...db.mosques.values()].sort((x, y) => (x.governorate_id + x.wilayat_id + x.name_ar).localeCompare(y.governorate_id + y.wilayat_id + y.name_ar)).map((m) => ({ code: m.code, name_ar: m.name_ar, governorate_id: m.governorate_id, wilayat_id: m.wilayat_id, version: m.version, updated_at: new Date().toISOString(), timetable_version: db.tables.get(m.wilayat_id)?.version ?? null, timetable_days: Object.keys(db.tables.get(m.wilayat_id)?.schedule.days ?? {}).length }));
@@ -275,6 +276,24 @@ ok('stored timetables list wilayat + mosques', wtText.includes('مسقط') && wt
   ok("switching back shows this mosque's own values", back === String(localAsrBefore), back);
 }
 ok('laptop: still no JS errors', errs.length === 0, errs.join('|'));
+
+// 6d) Change the administrator password from its own settings page
+{
+  await p.getByRole('button', { name: 'كلمة مرور المشرف' }).first().click(); await p.clock.runFor(500);
+  const f = p.locator('form', { has: p.getByText('كلمة المرور الحالية') });
+  const inputs = f.locator('input[type=password]');
+  await inputs.nth(0).fill('wrong-one'); await inputs.nth(1).fill('newpass99'); await inputs.nth(2).fill('newpass99');
+  await f.getByRole('button', { name: 'حفظ كلمة المرور الجديدة' }).click(); await p.clock.runFor(800);
+  ok('password page: wrong current password refused', (await f.textContent()).includes('كلمة المرور غير صحيحة') && db.pw === 'secret123');
+  await inputs.nth(0).fill('secret123'); await inputs.nth(2).fill('mismatch1');
+  await f.getByRole('button', { name: 'حفظ كلمة المرور الجديدة' }).click(); await p.clock.runFor(300);
+  ok('password page: confirmation must match', (await f.textContent()).includes('تأكيد كلمة المرور غير مطابق') && db.pw === 'secret123');
+  await inputs.nth(2).fill('newpass99');
+  await f.getByRole('button', { name: 'حفظ كلمة المرور الجديدة' }).click(); await p.clock.runFor(800);
+  ok('password page: password changed on the server', db.pw === 'newpass99' && (await f.textContent()).includes('تم تغيير كلمة مرور المشرف'));
+  await p.screenshot({ path: `${OUT}/admin-password.png` });
+  db.pw = 'secret123'; // later steps sign in with the original password
+}
 
 // 7) Import a timetable from an image (real OCR, no fake clock)
 const ocx = await b.newContext({ viewport: { width: 1366, height: 900 }, serviceWorkers: 'block' });

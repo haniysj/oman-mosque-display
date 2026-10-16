@@ -9,6 +9,7 @@ import { useOnline } from '../../services/platform';
 import { usePwaStatus } from '../../services/pwa';
 import { BrandMark, IconClose, IconLock, IconWifi, IconWifiOff, IconAlert } from '../common/icons';
 import { InstallAppButton } from './InstallApp';
+import { PasswordSection } from './PasswordSection';
 import { Badge, Btn, Note } from './kit';
 import { TimetableSection, SOURCE_AR, sourceTone } from './TimetableSection';
 import { FridaySection, HijriSection, IqamahSection, QuietSection } from './PrayerSections';
@@ -26,6 +27,7 @@ const TABS = [
   { id: 'adhkar', label: 'الأذكار' },
   { id: 'display', label: 'العرض' },
   { id: 'backup', label: 'النسخ الاحتياطي' },
+  { id: 'password', label: 'كلمة مرور المشرف' },
   { id: 'diagnostics', label: 'التشخيص' },
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
@@ -165,6 +167,7 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
     adhkar: <AdhkarSection onPreview={previewAdhkar} />,
     display: <DisplaySection />,
     backup: <BackupSection />,
+    password: <PasswordSection />,
     diagnostics: <DiagnosticsSection onSimulate={simulate} />,
   };
 
