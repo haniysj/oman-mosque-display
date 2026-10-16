@@ -483,3 +483,9 @@ button { font-family: inherit; }
 .theme-sand .edge-orn, .theme-sand .edge-orn--bottom { opacity: .34; }
 .theme-minimal .arch-orn-tile { opacity: .45; }
 .theme-minimal .edge-orn { opacity: .34; }
+
+/* wider arch: slimmer side margins and gaps, the arch fills its whole column */
+.tv { padding-left: 56px; padding-right: 56px; }
+.tv-main { grid-template-columns: 520px 1fr 520px; grid-column-gap: 30px; column-gap: 30px; }
+.mihrab, .arch-orn { width: calc(100% - 4px); max-width: 900px; }
+.split--half .tv-main { grid-template-columns: 550px 1fr 550px; grid-column-gap: 24px; column-gap: 24px; }
