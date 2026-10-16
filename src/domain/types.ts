@@ -162,7 +162,8 @@ export interface DisplayPreferences {
   countdownFocus: boolean;
   screenLayout: 'full' | 'third' | 'half'; // TV/desktop: share of the screen for the prayer times (rest = adhkar)
   layoutSide: 'right' | 'left'; // side of the prayer times when the screen is split
-  splitAdhkarSeconds: number; // seconds per dhikr in the split adhkar area // dim + blur the rest of the screen during the 60-second countdown
+  splitAdhkarSeconds: number; // seconds per dhikr in the split adhkar area
+  adhkarKashida: boolean; // «الحروف المرسلة»: elongated word endings in the adhkar text (display only)
   showEnglishName: boolean;
   showSourceBadge: boolean; // badge for calculated data (demo is always labelled)
   autoHideControls: boolean;

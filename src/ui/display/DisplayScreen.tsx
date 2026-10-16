@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from 're
 import type { AppConfig, PrayerKey, PrayerSchedule } from '../../domain/types';
 import { PRAYER_KEYS } from '../../domain/types';
 import { adhkarAt, adhkarForSlot, type DisplayState } from '../../core/engine';
+import { addKashida } from '../../core/kashida';
 import { formatClock, formatGregorianAr, toDigits, WEEKDAYS_AR } from '../../core/time';
 import { formatHijriAr, toHijri } from '../../core/hijri';
 import { coverage } from '../../core/timetable';
@@ -487,7 +488,7 @@ function SplitAdhkar({ state, cfg, half }: { state: DisplayState; cfg: AppConfig
     <div className="split-adhkar" role="region" aria-label="الأذكار">
       <div className="split-adhkar-title">{item.category || 'أذكار'}</div>
       <div key={item.id} className="split-adhkar-body">
-        <FitText text={item.text} base={base} min={30} lines={half ? 9 : 8} className="split-adhkar-text" lh={1.8} />
+        <FitText text={cfg.display.adhkarKashida !== false ? addKashida(item.text) : item.text} base={base} min={30} lines={half ? 9 : 8} className="split-adhkar-text" lh={1.8} />
         {item.source && <div className="split-adhkar-source">{item.source}</div>}
       </div>
     </div>

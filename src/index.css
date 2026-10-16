@@ -490,12 +490,12 @@ button { font-family: inherit; }
 .mihrab, .arch-orn { width: calc(100% - 4px); max-width: 900px; }
 .split--half .tv-main { grid-template-columns: 550px 1fr 550px; grid-column-gap: 24px; column-gap: 24px; }
 
-/* adhkar text: Thmanyah Sans (ثمانية, free for websites & apps — font.thmanyah.com), regular weight,
+/* adhkar text: Thmanyah Serif Text Medium (ثمانية, free for websites & apps — font.thmanyah.com),
    more line spacing; bundled locally so it also works offline. */
-@font-face { font-family: 'Thmanyah Sans'; src: url('./assets/fonts/thmanyah-sans-regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Thmanyah Serif Text'; src: url('./assets/fonts/thmanyah-serif-text-medium.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
 .adhkar-text, .split-adhkar-text {
-  font-family: 'Thmanyah Sans', 'Noto Naskh Arabic', 'Amiri', serif;
-  font-weight: 400; letter-spacing: 0;
+  font-family: 'Thmanyah Serif Text', 'Noto Naskh Arabic', 'Amiri', serif;
+  font-weight: 500; letter-spacing: 0;
 }
 
 /* ------------------------------------------------------------------ gold cartouche behind the mosque name */

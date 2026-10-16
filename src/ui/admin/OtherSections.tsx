@@ -98,6 +98,10 @@ export function AdhkarSection({ onPreview }: { onPreview: () => void }) {
   return (
     <div className="flex flex-col gap-4">
       {ui}
+      <Card title="شكل نص الأذكار">
+        <Toggle checked={cfg.display.adhkarKashida !== false} onChange={(v) => void updateConfig((c) => { c.display.adhkarKashida = v; })}
+          label="الحروف المرسلة (تطويل نهايات الكلمات)" hint="بخط ثمانية: تطويل جميل قبل الحروف الأخيرة (ن، ى، ي، ل، ه). للعرض فقط — لا يغيّر النص المحفوظ، ولا يُطبَّق على آيات القرآن ولا على لفظ الجلالة." />
+      </Card>
       <Card title="مجموعات الأذكار" actions={<Btn small onClick={addGroup}><IconPlus size={14} />مجموعة جديدة</Btn>}>
         <Note>تُعرض المجموعات بعد الصلاة بالترتيب أدناه: كل مجموعة بعد الصلوات المحددة لها فقط (مثل أذكار الصباح بعد الفجر، وأذكار المساء بعد العصر). داخل كل مجموعة تُعرض الأذكار بترتيبها.</Note>
         <ul className="m-0 mt-3 flex list-none flex-col gap-2 p-0" aria-label="المجموعات">

@@ -138,8 +138,8 @@ await shot(browser, { name: 'adhkar', w: 1920, h: 1080, at: muscat(SAT, '15:40:1
   check: async (p) => {
     ok('adhkar visible', await p.locator('.adhkar-text').isVisible());
     ok('adhkar 2nd item at +70s', (await p.locator('.adhkar-dots span.on').count()) === 1 && (await p.locator('.adhkar-dots span').nth(1).getAttribute('class')) === 'on');
-    ok('adhkar text uses Thmanyah Sans (bundled)', await p.evaluate(async () => { await document.fonts.ready; return document.fonts.check("400 40px 'Thmanyah Sans'", 'ذكر') && [...document.fonts].some((f) => f.family.includes('Thmanyah') && f.status === 'loaded'); }));
-    ok('adhkar text: regular weight, wide line spacing', (await p.locator('.adhkar-text').evaluate((e) => { const c = getComputedStyle(e); return +c.fontWeight <= 400 && parseFloat(c.lineHeight) / parseFloat(c.fontSize) >= 1.75; })));
+    ok('adhkar text uses Thmanyah Serif Text (bundled)', await p.evaluate(async () => { await document.fonts.ready; return [...document.fonts].some((f) => f.family.includes('Thmanyah Serif Text') && f.status === 'loaded'); }));
+    ok('adhkar text: regular weight, wide line spacing', (await p.locator('.adhkar-text').evaluate((e) => { const c = getComputedStyle(e); return +c.fontWeight <= 500 && parseFloat(c.lineHeight) / parseFloat(c.fontSize) >= 1.75; })));
   } });
 
 // Adhkar groups (settings): suggested morning adhkar, group shown after chosen prayers, order

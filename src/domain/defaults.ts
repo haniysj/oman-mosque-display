@@ -77,7 +77,7 @@ export function defaultConfig(): AppConfig {
       countdownFocus: true,
       screenLayout: 'full',
       layoutSide: 'right',
-      splitAdhkarSeconds: 20,
+      splitAdhkarSeconds: 20, adhkarKashida: true,
       showEnglishName: true,
       showSourceBadge: true,
       autoHideControls: true,
