@@ -344,6 +344,14 @@ for (const [t, adhanAsr, iqAsr, adhanMaghrib] of [['15:20:00', 'الآن', 'ال
     } });
 }
 
+// Sand theme, phone: only the iqamah card has a backing — no white block above / around it
+await shot(browser, { name: 'phone-iqwait-sand', w: IPHONE.viewport.width, h: IPHONE.viewport.height, at: muscat(SAT, '15:20:30'), ua: IPHONE.userAgent, isMobile: true,
+  mutate: (b) => { b.config.display.theme = 'sand'; return b; },
+  check: async (p) => {
+    const bg = await p.evaluate(() => ({ wrap: getComputedStyle(document.querySelector('.m-iqwait')).backgroundColor, card: getComputedStyle(document.querySelector('.m-iqwait-card')).backgroundColor }));
+    ok('sand phone: no backing around the iqamah card (only the card itself)', bg.wrap === 'rgba(0, 0, 0, 0)' && bg.card === 'rgba(255, 252, 245, 0.72)', JSON.stringify(bg));
+    await p.locator('.m-iqwait').scrollIntoViewIfNeeded(); await p.screenshot({ path: `${OUT}/phone-iqwait-sand.png` });
+  } });
 // Phone, between adhan and iqamah: minutes to the iqamah + «please switch off the phone» (Asr 15:14 → 15:34)
 await shot(browser, { name: 'phone-iqwait', w: IPHONE.viewport.width, h: IPHONE.viewport.height, at: muscat(SAT, '15:20:30'), ua: IPHONE.userAgent, isMobile: true,
   check: async (p) => {
