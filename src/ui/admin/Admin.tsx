@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { PrayerKey } from '../../domain/types';
 import { buildDayPlan } from '../../core/iqamah';
 import { coverage } from '../../core/timetable';
@@ -59,7 +59,9 @@ function AdminGate({ onClose }: { onClose: () => void }) {
     adminStatus().then((st) => setInitialized(st.initialized)).catch(() => setInitialized(true));
   }, [online]);
 
-  const submit = async () => {
+  const tries = useRef(0);
+  const submit = async (auto = false) => {
+    const mine = ++tries.current;
     setErr(''); setBusy(true);
     try {
       if (initialized === false) {
@@ -74,8 +76,18 @@ function AdminGate({ onClose }: { onClose: () => void }) {
           if (/الخادم|مهلة/.test((e as Error).message) && hasOfflineVerifier()) await adminLoginOffline(pw); else throw e;
         }
       }
-    } catch (e) { setErr((e as Error).message); setPw(''); } finally { setBusy(false); }
+    } catch (e) {
+      // an automatic try while typing: keep what was typed; only the latest try reports
+      if (mine === tries.current) { setErr((e as Error).message); if (!auto) setPw(''); }
+    } finally { if (mine === tries.current) setBusy(false); }
   };
+  // signs in by itself shortly after typing stops — no need to press «دخول»
+  useEffect(() => {
+    if (initialized !== true || pw.length < 4) return;
+    const t = setTimeout(() => void submit(true), 700);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pw, initialized]);
 
   const first = initialized === false;
   return (
@@ -90,14 +102,15 @@ function AdminGate({ onClose }: { onClose: () => void }) {
               placeholder={first ? 'كلمة المرور (6 أحرف على الأقل)' : 'كلمة المرور'} value={pw} onChange={(e) => { setErr(''); setPw(e.target.value); }} />
             {first && <input className="mt-2 h-12 w-full rounded-xl border border-line px-3 text-center text-[16px]" dir="ltr" type="password" autoComplete="new-password" placeholder="تأكيد كلمة المرور" value={pw2} onChange={(e) => setPw2(e.target.value)} />}
             {!online && <p className="m-0 mt-2 text-[12px] text-ink2">{hasOfflineVerifier() ? 'لا يوجد إنترنت — يتم التحقق على الجهاز.' : 'لا يوجد إنترنت — أول دخول على هذا الجهاز يحتاج اتصالاً.'}</p>}
+            {busy && !err && <p className="m-0 mt-2 text-[12px] text-muted">جارٍ التحقق…</p>}
             {err && <p className="m-0 mt-2 text-[13px] font-bold text-rose">{err}</p>}
           </>
         )}
         <div className="mt-4 flex justify-center gap-2">
           <Btn onClick={onClose}>رجوع</Btn>
-          <Btn kind="primary" type="submit" disabled={busy || !pw || initialized === null}>{first ? 'إنشاء والدخول' : 'دخول'}</Btn>
+          <Btn kind="primary" type="submit" disabled={!pw || initialized === null}>{first ? 'إنشاء والدخول' : 'دخول'}</Btn>
         </div>
-        <p className="m-0 mt-3 text-[11px] text-muted">كلمة المرور لا تُحفظ على الجهاز، وتُطلب من جديد عند إعادة تحميل الصفحة.</p>
+        <p className="m-0 mt-3 text-[11px] text-muted">يتم الدخول تلقائياً بعد كتابة كلمة المرور الصحيحة. كلمة المرور لا تُحفظ على الجهاز، وتُطلب من جديد عند إعادة تحميل الصفحة.</p>
       </form>
     </div>
   );

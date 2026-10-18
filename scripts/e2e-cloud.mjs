@@ -320,7 +320,9 @@ ok('laptop: still no JS errors', errs.length === 0, errs.join('|'));
   await q.goto(BASE + '/#/admin'); await q.waitForTimeout(1500);
   await q.getByPlaceholder('كلمة المرور', { exact: true }).fill('wrong'); await q.getByRole('button', { name: 'دخول', exact: true }).click(); await q.waitForTimeout(800);
   ok('mosque supervisor: wrong password refused', (await q.getByText('كلمة المرور غير صحيحة').count()) === 1);
-  await q.getByPlaceholder('كلمة المرور', { exact: true }).fill('noor55'); await q.getByRole('button', { name: 'دخول', exact: true }).click(); await q.waitForTimeout(2500);
+  // typing the right password signs in by itself (no «دخول» press)
+  await q.getByPlaceholder('كلمة المرور', { exact: true }).fill('noor55'); await q.waitForTimeout(2500);
+  ok('sign-in: automatic after typing the password', (await q.getByPlaceholder('كلمة المرور', { exact: true }).count()) === 0 && (await q.locator('aside nav').count()) === 1);
   const navText = await q.locator('aside nav').textContent();
   ok('mosque supervisor: only this mosque\'s pages (timetable, iqamah, display… — no mosques / passwords)', navText.includes('جدول المواقيت') && navText.includes('الإقامة') && navText.includes('العرض') && !navText.includes('المساجد والمزامنة') && !navText.includes('كلمات المرور'), navText);
   ok('mosque supervisor: enters «مسجد النور» profile directly (no other mosque, no exit)', (await q.getByTestId('profile-name').textContent()).includes('مسجد النور') && (await q.getByRole('button', { name: 'الخروج من ملف المسجد' }).count()) === 0);
