@@ -167,7 +167,6 @@ export function AdhkarSection({ onPreview }: { onPreview: () => void }) {
                           <div className="min-w-0">
                             <div className="mb-1 flex flex-wrap items-center gap-1.5">
                               <Badge tone="muted">{k + 1}</Badge>
-                              <Badge tone="muted">{a.seconds ?? cfg.adhkar.defaultSeconds} ث</Badge>
                               {!a.enabled && <Badge tone="saffron">معطّل</Badge>}
                             </div>
                             <p className="m-0 line-clamp-3 whitespace-pre-line font-amiri text-[17px] leading-8 text-ink">{a.text}</p>
@@ -178,7 +177,9 @@ export function AdhkarSection({ onPreview }: { onPreview: () => void }) {
                             <button className="rounded-lg p-1.5 hover:bg-paper disabled:opacity-30" disabled={k === items.length - 1} aria-label="أسفل" onClick={() => moveItem(a.id, 1)}><IconDown size={16} /></button>
                           </div>
                         </div>
-                        <div className="mt-2 flex flex-wrap gap-2">
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <DurationInput testId={`dur-${a.id}`} value={a.seconds} fallback={cfg.adhkar.defaultSeconds}
+                            onCommit={(v) => save(ordered.map((x) => (x.id === a.id ? { ...x, seconds: v } : x)))} />
                           <Btn small onClick={() => setEdit({ ...a, groupId: gid(a) ?? undefined })}><IconEdit size={14} />تعديل</Btn>
                           <Btn small onClick={() => save(ordered.map((x) => (x.id === a.id ? { ...x, enabled: !x.enabled } : x)))}>{a.enabled ? 'تعطيل' : 'تفعيل'}</Btn>
                           <Btn small kind="danger" onClick={() => ask('حذف هذا الذكر نهائياً؟', () => save(ordered.filter((x) => x.id !== a.id)))}><IconTrash size={14} />حذف</Btn>
@@ -214,9 +215,8 @@ export function AdhkarSection({ onPreview }: { onPreview: () => void }) {
                   <Select value={edit.groupId ?? groups[0].id} onChange={(v) => setEdit({ ...edit, groupId: v })} options={groups.map((g) => ({ value: g.id, label: g.name }))} />
                 </Field>
                 <Field label="المصدر / التخريج" hint="مثال: رواه مسلم (591)"><input className="h-11 rounded-xl border border-line px-3" value={edit.source} onChange={(e) => setEdit({ ...edit, source: e.target.value })} /></Field>
-                <Field label="مدة العرض" hint="اتركه فارغاً لاستخدام المدة الافتراضية">
-                  <input className="h-11 rounded-xl border border-line px-3 text-center" dir="ltr" inputMode="numeric" value={edit.seconds ?? ''} placeholder={String(cfg.adhkar.defaultSeconds)}
-                    onChange={(e) => { const n = parseInt(e.target.value, 10); setEdit({ ...edit, seconds: Number.isFinite(n) ? Math.max(5, Math.min(600, n)) : null }); }} />
+                <Field label="مدة العرض (ثانية)" hint={`أي رقم — اتركه فارغاً للمدة الافتراضية (${cfg.adhkar.defaultSeconds} ث)`}>
+                  <DurationInput value={edit.seconds} fallback={cfg.adhkar.defaultSeconds} wide onCommit={(v) => setEdit((e) => (e ? { ...e, seconds: v } : e))} />
                 </Field>
               </Grid>
             </div>
@@ -446,3 +446,31 @@ export function DiagnosticsSection({ onSimulate }: { onSimulate: (at: number, sp
   );
 }
 
+
+/** Seconds for one dhikr: any number (≥ 1, decimals allowed); empty = the default length. */
+export function parseSeconds(raw: string): number | null | undefined {
+  const t = raw.trim().replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x660)).replace(/[٫,]/g, '.');
+  if (!t) return null;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n <= 0) return undefined; // invalid → keep the previous value
+  return Math.max(1, Math.round(n * 10) / 10);
+}
+function DurationInput({ value, fallback, onCommit, testId, wide }: { value: number | null | undefined; fallback: number; onCommit: (v: number | null) => void; testId?: string; wide?: boolean }) {
+  const [v, setV] = useState(value == null ? '' : String(value));
+  useEffect(() => setV(value == null ? '' : String(value)), [value]);
+  const commit = () => {
+    const n = parseSeconds(v);
+    if (n === undefined) { setV(value == null ? '' : String(value)); return; }
+    setV(n == null ? '' : String(n));
+    if (n !== (value ?? null)) onCommit(n);
+  };
+  return (
+    <span className={`inline-flex items-center gap-1.5 ${wide ? 'w-full' : ''}`}>
+      {!wide && <span className="text-[12px] font-bold text-ink2">مدة العرض</span>}
+      <input data-testid={testId} className={`h-9 rounded-xl border border-line px-2 text-center text-[14px] outline-none focus:border-teal ${wide ? 'h-11 w-full' : 'w-[72px]'}`}
+        dir="ltr" inputMode="decimal" value={v} placeholder={String(fallback)} aria-label="مدة عرض الذكر بالثواني"
+        onChange={(e) => setV(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+      <span className="text-[12px] text-muted">{v.trim() ? 'ثانية' : 'ثانية (افتراضي)'}</span>
+    </span>
+  );
+}

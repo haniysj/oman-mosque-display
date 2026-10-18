@@ -231,6 +231,29 @@ for (const tab of ['timetable', 'iqamah', 'friday', 'quiet', 'adhkar', 'diagnost
   }
 }
 
+// Per-dhikr display length: any number, typed in the list
+{
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
+  const page = await ctx.newPage(); const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+  await page.clock.install({ time: muscat(SAT, '15:20:00') });
+  await seed(page);
+  await page.evaluate(() => sessionStorage.setItem('omd-admin-tab', 'adhkar'));
+  await adminLogin(ctx);
+  await page.goto(BASE + '/#/admin'); await page.reload(); await page.clock.runFor(800);
+  await adminLogin(ctx, page); await page.clock.runFor(800); await enterLocal(page);
+  const inputs = page.locator('[data-testid^="dur-"]');
+  ok('adhkar: every dhikr has its own length field', (await inputs.count()) >= 3);
+  await inputs.nth(0).fill('17'); await inputs.nth(0).press('Enter'); await page.clock.runFor(300);
+  await inputs.nth(1).fill('٢٣'); await inputs.nth(1).press('Enter'); await page.clock.runFor(300);
+  const stored = await page.evaluate(async () => { const d = await new Promise((r) => { const q = indexedDB.open('oman-mosque-display', 1); q.onsuccess = () => r(q.result); }); return new Promise((r) => { const g = d.transaction('kv').objectStore('kv').get('adhkar'); g.onsuccess = () => r(g.result.slice(0, 3).map((a) => a.seconds)); }); });
+  ok('adhkar: lengths 17 and 23 (Arabic digits) saved; the third keeps the default', stored[0] === 17 && stored[1] === 23 && stored[2] === null, JSON.stringify(stored));
+  await inputs.nth(0).fill(''); await inputs.nth(0).press('Enter'); await page.clock.runFor(300);
+  ok('adhkar: clearing the field returns to the default length', (await inputs.nth(0).getAttribute('placeholder')) === '60' && (await inputs.nth(0).inputValue()) === '');
+  await page.screenshot({ path: `${OUT}/admin-adhkar-durations.png` });
+  ok('adhkar lengths: no JS errors', !errs.length, errs.join('|'));
+  await ctx.close();
+}
+
 // Power-saving periods (settings)
 {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });

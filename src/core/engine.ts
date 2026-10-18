@@ -161,7 +161,8 @@ function sequenceFor(plan: DayPlan, slot: SlotKey, input: EngineInput): Sequence
 export function adhkarAt(list: AdhkarItem[], defaultSeconds: number, startedAt: number, now: number) {
   const items = enabledAdhkar(list);
   if (!items.length) return { item: null, index: -1, endsAt: null as number | null };
-  const durs = items.map((a) => Math.max(5, a.seconds ?? defaultSeconds) * 1000);
+  // each dhikr may have its own length (any value ≥ 1 s); otherwise the default (≥ 5 s)
+  const durs = items.map((a) => (typeof a.seconds === 'number' && a.seconds > 0 ? Math.max(1, a.seconds) : Math.max(5, defaultSeconds)) * 1000);
   const total = durs.reduce((a, b) => a + b, 0);
   const elapsed = Math.max(0, now - startedAt);
   const cycleStart = startedAt + Math.floor(elapsed / total) * total;

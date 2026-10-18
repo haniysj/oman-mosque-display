@@ -268,7 +268,7 @@ export function QuietSection({ onPreview }: { onPreview: (slot: PrayerKey) => vo
           <Toggle checked={a.enabled} onChange={(v) => set((c) => { c.adhkar.enabled = v; })} label="عرض الأذكار" />
           <Grid>
             <Field label="مدة الأذكار"><NumberInput value={a.minutes} min={1} max={60} suffix="دقيقة" onCommit={(v) => set((c) => { c.adhkar.minutes = v; })} /></Field>
-            <Field label="مدة كل ذكر (افتراضي)"><NumberInput value={a.defaultSeconds} min={10} max={600} suffix="ثانية" onCommit={(v) => set((c) => { c.adhkar.defaultSeconds = v; })} /></Field>
+            <Field label="مدة كل ذكر (افتراضي)" hint="5 ثوانٍ على الأقل. ويمكن تحديد مدة مستقلة لكل ذكر من قسم «الأذكار»."><NumberInput value={a.defaultSeconds} min={5} suffix="ثانية" onCommit={(v) => set((c) => { c.adhkar.defaultSeconds = Math.round(v * 10) / 10; })} /></Field>
           </Grid>
           <Toggle checked={a.audio} onChange={(v) => set((c) => { c.adhkar.audio = v; })} label="الصوت" hint="لا يتضمن التطبيق أي ملفات صوتية؛ الإعداد محفوظ لاستخدام مستقبلي ولا يُشغَّل أي صوت." />
         </div>
