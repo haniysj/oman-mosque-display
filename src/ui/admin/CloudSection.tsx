@@ -57,7 +57,8 @@ export function CloudSection() {
     try { await fn(); setMsg(okMsg); await refresh(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
 
-  const bound = cloud.binding;
+  const shown = cloud.binding; // linked, or only showing a mosque's times
+  const bound = shown && !shown.viewOnly ? shown : null; // linked by a supervisor
   const boundMosque = mosques?.find((m) => m.code === bound?.code);
 
   const openEdit = (code: string) => void run(async () => setEditing({ code, cfg: await getMosqueConfig(code) }), '');
@@ -78,8 +79,17 @@ export function CloudSection() {
       {err && <Note tone="error">{err}</Note>}
       {msg && <Note tone="ok">{msg}</Note>}
 
-      <Card title="هذا الجهاز" actions={bound ? <Badge tone="teal">مرتبط</Badge> : <Badge tone="muted">غير مرتبط</Badge>}>
-        {bound ? (
+      <Card title="هذا الجهاز" actions={bound ? <Badge tone="teal">مرتبط</Badge> : shown ? <Badge tone="saffron">يعرض فقط — غير مرتبط</Badge> : <Badge tone="muted">غير مرتبط</Badge>}>
+        {shown && !bound && (
+          <div className="flex flex-col gap-3" data-testid="view-only">
+            <Note>هذا الجهاز <b>يعرض مواقيت «{shown.name || shown.code}»</b> فقط ولم يُربط به (اختير من الشاشة أو من رابط المسجد). يتحدث تلقائياً، لكن تعديلات هذا الجهاز لا تُرفع للمسجد. لتعديل إعدادات المسجد ادخل إلى «ملف المسجد».</Note>
+            <div className="flex flex-wrap gap-2">
+              <Btn small kind="primary" disabled={busy} onClick={() => ask(`ربط هذا الجهاز بـ «${shown.name || shown.code}»؟\nيصبح الجهاز شاشة لهذا المسجد.`, () => void run(() => bindDevice(shown.code, shown.name), `تم ربط الجهاز بـ «${shown.name || shown.code}».`))}>ربط هذا الجهاز بالمسجد</Btn>
+              <Btn small kind="danger" onClick={() => ask('إيقاف عرض هذا المسجد على الجهاز؟\nتعود إعدادات الجهاز المستقلة، ولا يرتبط تلقائياً.', () => void unbindDevice())}>إيقاف عرض المسجد</Btn>
+            </div>
+          </div>
+        )}
+        {!shown || bound ? (bound ? (
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2 text-[15px]">
               <b className="text-ink">{bound.name || bound.code}</b>
@@ -120,7 +130,7 @@ export function CloudSection() {
               </ul>
             ) : <p className="m-0 text-[13px] text-muted">{mosques ? 'لا توجد مساجد مسجلة بعد — أضفها بعد تسجيل الدخول كمشرف.' : 'جارٍ التحميل…'}</p>}
           </div>
-        )}
+        )) : null}
       </Card>
 
       <Card title="دخول المشرف" icon={<IconLock size={16} />} actions={cloud.admin ? <Badge tone="teal">مسجّل الدخول</Badge> : null}>

@@ -8,7 +8,7 @@
 import { useSyncExternalStore } from 'react';
 import type { AdhkarItem, AppConfig, PrayerSchedule } from '../../domain/types';
 import { getState, setAdhkar, updateConfig, useApp } from '../../store/appStore';
-import { getCloud, getMosqueBundle, getMosqueConfig, saveMosqueSettings } from '../../services/cloud';
+import { getCloud, getMosqueBundle, getMosqueConfig, linkedCode, saveMosqueSettings } from '../../services/cloud';
 import { defaultAdhkar } from '../../domain/defaults';
 
 export const LOCAL = '__local__';
@@ -24,12 +24,13 @@ export const useEditState = () => useSyncExternalStore((cb) => { subs.add(cb); r
 /** The default target for the signed-in person. */
 export function defaultTarget(): string {
   const c = getCloud();
-  const bound = c.binding?.code ?? null;
+  const bound = linkedCode();
   if (c.role === 'mosque') return bound && c.codes.includes(bound) ? bound : c.codes[0] ?? '';
   return bound ?? LOCAL;
 }
 
-const isLocalTarget = (t: string) => !!t && (t === LOCAL || t === getCloud().binding?.code);
+// only a LINKED device edits its mosque live; a device that only shows a mosque edits it like any other
+const isLocalTarget = (t: string) => !!t && (t === LOCAL || t === linkedCode());
 
 export async function selectTarget(code: string) {
   put({ target: code, error: '', msg: '' });

@@ -1,7 +1,7 @@
 /** Phone / screen mosque picker: choose a stored mosque; its settings and its wilayat's timetable are downloaded and kept for offline use. */
 import { useEffect, useMemo, useState } from 'react';
 import { GOVERNORATES, locationLabel } from '../../domain/oman';
-import { bindDevice, listMosques, type MosqueSummary } from '../../services/cloud';
+import { isLinked, listMosques, useCloud, viewMosque, type MosqueSummary } from '../../services/cloud';
 import { useOnline } from '../../services/platform';
 
 const LS_LIST = 'omd-cloud-mosque-list';
@@ -12,6 +12,8 @@ export function MosquePicker({ current, onClose }: { current: string | null; onC
   const [q, setQ] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
+  useCloud();
+  const linked = isLinked();
 
   useEffect(() => {
     if (!online) return;
@@ -30,9 +32,11 @@ export function MosquePicker({ current, onClose }: { current: string | null; onC
   }, [list, q]);
 
   const choose = async (m: MosqueSummary) => {
+    // a device linked by a supervisor keeps its mosque — linking / un-linking is done only in the settings
+    if (linked) { setErr('هذا الجهاز مرتبط بمسجده من لوحة التحكم — لعرض مسجد آخر يفك المشرف الربط أولاً.'); return; }
     if (!online) { setErr('اختيار المسجد يحتاج اتصالاً بالإنترنت لتنزيل مواقيته'); return; }
     setBusy(m.code); setErr('');
-    const ok = await bindDevice(m.code, m.name_ar);
+    const ok = await viewMosque(m.code, m.name_ar);
     setBusy(null);
     if (ok || current === m.code) onClose(); else setErr('تعذّر تنزيل بيانات المسجد — حاول مرة أخرى');
   };
@@ -47,6 +51,7 @@ export function MosquePicker({ current, onClose }: { current: string | null; onC
           </button>
         </div>
         <input className="mp-search" placeholder="ابحث باسم المسجد أو الولاية" value={q} onChange={(e) => setQ(e.target.value)} />
+        {linked && <div className="mp-note">هذا الجهاز مرتبط بمسجده من لوحة التحكم، ولا يتغير من هنا.</div>}
         {!online && <div className="mp-note">لا يوجد اتصال بالإنترنت — تظهر آخر قائمة محفوظة، والاختيار يحتاج اتصالاً.</div>}
         {err && <div className="mp-note mp-note--err">{err}</div>}
         <div className="mp-list">
@@ -66,7 +71,7 @@ export function MosquePicker({ current, onClose }: { current: string | null; onC
               </section>
             ))}
         </div>
-        <p className="mp-foot">تُحفظ مواقيت المسجد المختار على هذا الجهاز وتعمل دون إنترنت، وتتحدث تلقائياً عند الاتصال.</p>
+        <p className="mp-foot">يعرض هذا الجهاز مواقيت المسجد المختار دون ربطه به (الربط من لوحة التحكم فقط). تُحفظ المواقيت وتعمل دون إنترنت، وتتحدث تلقائياً عند الاتصال.</p>
       </div>
     </div>
   );

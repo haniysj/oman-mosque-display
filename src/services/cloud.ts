@@ -34,7 +34,9 @@ export interface MosqueSummary {
 export interface TimetableSummary { wilayat_id: string; governorate_id: string; version: number; updated_at: string; days: number; calibrated: boolean; mosques: number }
 
 export interface CloudStatus {
-  binding: { code: string; name: string } | null;
+  /** The mosque shown on this device. viewOnly = shown without being linked (chosen on the screen,
+   *  opened from a mosque address, or the default mosque); only a supervisor links a device. */
+  binding: { code: string; name: string; viewOnly?: boolean } | null;
   syncing: boolean;
   lastSyncAt: string | null;
   lastError: string | null;
@@ -163,7 +165,15 @@ const LS_LOCAL_PROFILE = 'omd-local-profile';
 const LS_UNBOUND_CODE = 'omd-cloud-unbound-code';
 const LS_OWN_DONE = 'omd-own-settings-restored';
 
-export async function bindDevice(code: string, name = '') {
+/** True when this device is linked to its mosque by a supervisor (not just showing its times). */
+export const isLinked = () => !!status.binding && !status.binding.viewOnly;
+/** The linked mosque's code (null when not linked or only viewing). */
+export const linkedCode = () => (isLinked() ? status.binding!.code : null);
+
+/** Shows a mosque's times and settings on this device WITHOUT linking it (no supervisor needed). */
+export function viewMosque(code: string, name = '') { return bindDevice(code, name, true); }
+
+export async function bindDevice(code: string, name = '', viewOnly = false) {
   // Edits made for the previous mosque are sent to THAT mosque before switching (never to the new one).
   await flushPendingUpload();
   if (!status.binding) {
@@ -171,12 +181,12 @@ export async function bindDevice(code: string, name = '') {
     const { config, adhkar } = getState();
     try { localStorage.setItem(LS_LOCAL_PROFILE, JSON.stringify({ config, adhkar })); } catch { /* ignore */ }
   }
-  try { localStorage.removeItem(LS_MANUAL); localStorage.removeItem(LS_UNBOUND_CODE); localStorage.removeItem(LS_OWN_DONE); } catch { /* ignore */ }
+  if (!viewOnly) { try { localStorage.removeItem(LS_MANUAL); localStorage.removeItem(LS_UNBOUND_CODE); localStorage.removeItem(LS_OWN_DONE); } catch { /* ignore */ } }
   syncUrl(code);
   const prev = status.binding?.code;
-  writeJson(LS_BINDING, { code, name });
-  set({ binding: { code, name }, ...(prev !== code ? { mosqueVersion: null, timetableVersion: null, wilayatId: null, lastSyncAt: null } : {}) });
-  log('info', `ربط هذا الجهاز بالمسجد ${code}`);
+  writeJson(LS_BINDING, { code, name, ...(viewOnly ? { viewOnly: true } : {}) });
+  set({ binding: { code, name, ...(viewOnly ? { viewOnly: true } : {}) }, ...(prev !== code ? { mosqueVersion: null, timetableVersion: null, wilayatId: null, lastSyncAt: null } : {}) });
+  log('info', viewOnly ? `عرض مواقيت المسجد ${code} (بدون ربط)` : `ربط هذا الجهاز بالمسجد ${code}`);
   return syncNow(true);
 }
 
@@ -245,11 +255,11 @@ export function syncNow(force = false): Promise<boolean> {
       await applyCloudData({ config, adhkar, schedule });
       resetUploadBaseline();
       set({
-        binding: { code, name: b.mosque.name_ar },
+        binding: { ...status.binding!, code, name: b.mosque.name_ar },
         mosqueVersion: b.mosque.version, timetableVersion: b.timetable?.version ?? null, wilayatId: b.mosque.wilayat_id,
         lastSyncAt: new Date().toISOString(), lastError: null,
       });
-      writeJson(LS_BINDING, { code, name: b.mosque.name_ar });
+      writeJson(LS_BINDING, { ...status.binding });
       log('info', `تحديث من السحابة: إعدادات v${b.mosque.version}${b.timetable ? `، جدول ${locationLabel(b.mosque.governorate_id, b.mosque.wilayat_id)} v${b.timetable.version}` : ' (لا يوجد جدول للولاية بعد)'}`);
       return true;
     } catch (e) {
@@ -291,8 +301,8 @@ export async function autoBindDefault(): Promise<boolean> {
     let d: { code: string; name_ar: string } | null = await getDefaultMosque();
     if (!d) d = (await listMosques())[0] ?? null;
     if (!d || status.binding) return false;
-    log('info', `ربط تلقائي بالمسجد الافتراضي ${d.code}`);
-    await bindDevice(d.code, d.name_ar);
+    log('info', `عرض المسجد الافتراضي ${d.code} (بدون ربط)`);
+    await viewMosque(d.code, d.name_ar);
     return true;
   } catch (e) {
     set({ lastError: (e as Error).message });
@@ -470,7 +480,7 @@ export const deleteMosque = (code: string) => rpc<boolean>('mosque_admin_delete_
 
 /** Uploads this device's settings/adhkar to its bound mosque. */
 export async function pushMosque(snap?: { code: string; config: AppConfig; adhkar: AdhkarItem[] }) {
-  const b = snap ? { code: snap.code, name: snap.config.mosque.nameAr } : status.binding; if (!b) throw new Error('هذا الجهاز غير مرتبط بمسجد');
+  const b = snap ? { code: snap.code, name: snap.config.mosque.nameAr } : isLinked() ? status.binding : null; if (!b) throw new Error('هذا الجهاز غير مرتبط بمسجد');
   const { config, adhkar } = snap ?? getState();
   if (status.role === 'mosque') {
     // mosque supervisor: only this mosque's settings + adhkar (name / wilayat stay as they are)
@@ -487,8 +497,8 @@ export async function pushMosque(snap?: { code: string; config: AppConfig; adhka
   });
   if (status.binding?.code !== b.code) return r; // the device has moved on to another mosque
   const wilayatChanged = status.wilayatId !== loc.wilayatId;
-  set({ mosqueVersion: r.version, wilayatId: loc.wilayatId, binding: { code: b.code, name: config.mosque.nameAr } });
-  writeJson(LS_BINDING, { code: b.code, name: config.mosque.nameAr });
+  set({ mosqueVersion: r.version, wilayatId: loc.wilayatId, binding: { ...status.binding, code: b.code, name: config.mosque.nameAr } });
+  writeJson(LS_BINDING, { ...status.binding });
   if (wilayatChanged) void syncNow(true); // pick up the new wilayat's timetable
   return r;
 }
@@ -535,9 +545,9 @@ async function runUpload() {
 
 function scheduleUpload(kind: 'mosque' | 'timetable') {
   pending.add(kind);
-  if (kind === 'mosque' && status.binding) {
+  if (kind === 'mosque' && isLinked()) {
     const { config, adhkar } = getState();
-    pendingSnap = { code: status.binding.code, config: JSON.parse(JSON.stringify(config)) as AppConfig, adhkar };
+    pendingSnap = { code: status.binding!.code, config: JSON.parse(JSON.stringify(config)) as AppConfig, adhkar };
   }
   set({ pendingUpload: true });
   if (timer) clearTimeout(timer);
@@ -555,7 +565,9 @@ export function startCloud() {
   try { if (fromUrl && !status.binding && fromUrl === localStorage.getItem(LS_UNBOUND_CODE)) { fromUrl = null; syncUrl(null); } } catch { /* ignore */ }
   // devices un-linked before this update still carry the mosque's settings → give them their own once
   try { if (!status.binding && !fromUrl && localStorage.getItem(LS_MANUAL) && !localStorage.getItem(LS_OWN_DONE)) void restoreOwnSettings(); } catch { /* ignore */ }
-  if (fromUrl && fromUrl !== status.binding?.code) void bindDevice(fromUrl);
+  // a mosque address shows that mosque's times (view only); a device linked by a supervisor keeps its mosque
+  if (fromUrl && isLinked() && fromUrl !== status.binding!.code) { syncUrl(status.binding!.code); fromUrl = null; }
+  if (fromUrl && fromUrl !== status.binding?.code) void viewMosque(fromUrl);
   else if (status.binding) { syncUrl(status.binding.code); void syncNow(); }
   else void autoBindDefault();
   const tick = () => { if (status.binding) void syncNow(); else void autoBindDefault(); };
@@ -567,7 +579,7 @@ export function startCloud() {
   // Only mosque settings/adhkar are uploaded automatically. Wilayat timetables are edited and
   // saved explicitly from «جدول المواقيت» (so a screen can never overwrite its wilayat's table).
   onLocalChange((k) => {
-    if (!status.admin || !status.binding || !canEdit(status.binding.code)) return;
+    if (!status.admin || !isLinked() || !canEdit(status.binding!.code)) return;
     if (k === 'config') {
       const h = JSON.stringify(sharedConfig(getState().config));
       if (h !== lastSharedHash) { lastSharedHash = h; scheduleUpload('mosque'); }

@@ -398,14 +398,21 @@ await p.bringToFront();
   const bindingOf = () => u.evaluate(() => JSON.parse(localStorage.getItem('omd-cloud-binding') || 'null'));
   await u.goto(BASE + '/m/noor-muttrah'); await u.waitForTimeout(3000);
   const c1 = await cfgOf();
-  ok('unlink: device linked from the mosque address takes its settings', (await bindingOf())?.code === 'noor-muttrah' && c1.display.theme === 'maroon' && c1.quiet.sleep?.enabled === true, `${c1.display.theme}`);
+  const b1 = await bindingOf();
+  ok('view only: the mosque address SHOWS the mosque (its settings) without linking', b1?.code === 'noor-muttrah' && b1.viewOnly === true && c1.display.theme === 'maroon' && c1.quiet.sleep?.enabled === true, JSON.stringify(b1));
   await u.goto(BASE + '/m/noor-muttrah#/admin'); await u.waitForTimeout(1500);
   await u.getByPlaceholder('كلمة المرور', { exact: true }).fill('secret123'); await u.waitForTimeout(2500);
   await u.getByRole('button', { name: 'المساجد والمزامنة' }).first().click(); await u.waitForTimeout(500);
+  ok('view only: settings say «يعرض فقط — غير مرتبط»', (await u.getByTestId('view-only').count()) === 1 && (await u.getByRole('button', { name: 'فك الربط' }).count()) === 0);
+  // linking is done only here, by the supervisor
+  await u.getByRole('button', { name: 'ربط هذا الجهاز بالمسجد' }).click(); await u.waitForTimeout(200);
+  await u.getByRole('button', { name: 'تأكيد' }).click(); await u.waitForTimeout(2000);
+  ok('link: the supervisor links the device from the settings', (await bindingOf())?.code === 'noor-muttrah' && !(await bindingOf()).viewOnly);
   await u.getByRole('button', { name: 'فك الربط' }).click(); await u.waitForTimeout(200);
   await u.getByRole('button', { name: 'تأكيد' }).click(); await u.waitForTimeout(1500);
   const c2 = await cfgOf();
   ok('unlink: settings are the device\'s own again (no mosque theme, no power-saving periods)', (await bindingOf()) === null && c2.display.theme !== 'maroon' && !c2.quiet.sleep?.enabled, `${c2.display.theme} sleep=${c2.quiet.sleep?.enabled}`);
+  ok('unlink: only THIS device changes — the mosque (and its other screens) keep their settings', db.mosques.get('noor-muttrah').config.display.theme === 'maroon' && db.mosques.get('noor-muttrah').config.quiet.sleep?.enabled === true && db.mosques.get('noor-muttrah').version === nm.version);
   ok('unlink: the address no longer points to the mosque', !(await u.evaluate(() => location.pathname)).startsWith('/m/'));
   // opened again from the old mosque address (e.g. a home-screen icon) → stays un-linked
   await u.goto(BASE + '/m/noor-muttrah'); await u.waitForTimeout(3500);

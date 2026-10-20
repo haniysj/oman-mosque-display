@@ -5,7 +5,7 @@
  *    with «الخروج من ملف المسجد» — to edit another mosque you leave this one first.
  */
 import { useEffect, useState } from 'react';
-import { listMosques, useCloud, type MosqueSummary } from '../../services/cloud';
+import { linkedCode, listMosques, useCloud, type MosqueSummary } from '../../services/cloud';
 import { locationLabel } from '../../domain/oman';
 import { useApp } from '../../store/appStore';
 import { enterProfile, exitProfile, LOCAL, saveTarget, useEditState } from './editTarget';
@@ -23,7 +23,7 @@ export function useProfileName(): string {
   const localName = useApp((s) => s.config.mosque.nameAr);
   const cloud = useCloud();
   if (!e.target) return '';
-  if (e.target === LOCAL || e.target === cloud.binding?.code) return localName || cloud.binding?.name || 'هذه الشاشة';
+  if (e.target === LOCAL || e.target === linkedCode()) return localName || cloud.binding?.name || 'هذه الشاشة';
   return e.remote?.code === e.target ? e.remote.cfg.mosque.nameAr || e.target : '…';
 }
 
@@ -33,7 +33,8 @@ export function MosqueTargetBar() {
   const localName = useApp((s) => s.config.mosque.nameAr);
   const localLoc = useApp((s) => s.config.mosque.location);
   const [mosques, setMosques] = useState<MosqueSummary[] | null>(null);
-  const bound = cloud.binding?.code ?? null;
+  const bound = linkedCode();
+  const shown = cloud.binding?.code ?? null; // linked or only showing its times
 
   useEffect(() => {
     let off = false;
@@ -43,7 +44,7 @@ export function MosqueTargetBar() {
 
   const allowed = (code: string) => cloud.role === 'super' || cloud.codes.includes(code);
   const entries: Entry[] = [];
-  for (const m of mosques ?? []) if (allowed(m.code)) entries.push({ code: m.code, name: m.name_ar, place: locationLabel(m.governorate_id, m.wilayat_id), here: m.code === bound });
+  for (const m of mosques ?? []) if (allowed(m.code)) entries.push({ code: m.code, name: m.name_ar, place: locationLabel(m.governorate_id, m.wilayat_id), here: m.code === shown });
   if (bound && allowed(bound) && !entries.some((x) => x.code === bound)) entries.push({ code: bound, name: cloud.binding?.name || bound, place: locationLabel(localLoc.governorateId, localLoc.wilayatId), here: true });
   if (cloud.role === 'mosque') for (const c of cloud.codes) if (!entries.some((x) => x.code === c)) entries.push({ code: c, name: c, place: '', here: false });
   entries.sort((a, b) => Number(b.here) - Number(a.here));
@@ -62,7 +63,7 @@ export function MosqueTargetBar() {
         <h3 className="m-0 inline-flex items-center gap-2 text-[16px] font-extrabold"><IconMosque size={20} />اختر المسجد الذي تريد تعديل إعداداته</h3>
         <p className="m-0 mt-1 text-[13px] leading-6 text-ink2">إعدادات هذه الصفحة خاصة بكل مسجد (مثل الملف الشخصي): اضغط «دخول» على المسجد، وكل ما تعدّله يُحفظ له وحده. لتعديل مسجد آخر اخرج من الملف ثم ادخل إلى ملف المسجد الآخر.</p>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          {cloud.role === 'super' && !bound && (
+          {cloud.role === 'super' && !shown && (
             <ProfileCard testId="enter-local" name={`هذه الشاشة — ${localName || 'بدون اسم'}`} place="غير مرتبطة بمسجد · يُحفظ على هذا الجهاز فقط" onEnter={() => void enterProfile(LOCAL)} />
           )}
           {entries.map((x) => (
