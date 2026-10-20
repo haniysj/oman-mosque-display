@@ -12,7 +12,7 @@
  */
 import { useSyncExternalStore } from 'react';
 import type { AdhkarItem, AppConfig, DisplayPreferences, PrayerSchedule } from '../domain/types';
-import { mergeConfig } from '../domain/defaults';
+import { defaultAdhkar, defaultConfig, mergeConfig } from '../domain/defaults';
 import { findWilayat, locationLabel } from '../domain/oman';
 import { applyCloudData, getState, log, onLocalChange } from '../store/appStore';
 import { isValidScheduleShape } from '../core/timetable';
@@ -158,10 +158,20 @@ function syncUrl(code: string | null) {
   } catch { /* ignore */ }
 }
 
+// This device's own settings (before it was linked) — restored when it is un-linked.
+const LS_LOCAL_PROFILE = 'omd-local-profile';
+const LS_UNBOUND_CODE = 'omd-cloud-unbound-code';
+const LS_OWN_DONE = 'omd-own-settings-restored';
+
 export async function bindDevice(code: string, name = '') {
   // Edits made for the previous mosque are sent to THAT mosque before switching (never to the new one).
   await flushPendingUpload();
-  try { localStorage.removeItem(LS_MANUAL); } catch { /* ignore */ }
+  if (!status.binding) {
+    // keep this device's own settings so un-linking later gives them back (never the mosque's)
+    const { config, adhkar } = getState();
+    try { localStorage.setItem(LS_LOCAL_PROFILE, JSON.stringify({ config, adhkar })); } catch { /* ignore */ }
+  }
+  try { localStorage.removeItem(LS_MANUAL); localStorage.removeItem(LS_UNBOUND_CODE); localStorage.removeItem(LS_OWN_DONE); } catch { /* ignore */ }
   syncUrl(code);
   const prev = status.binding?.code;
   writeJson(LS_BINDING, { code, name });
@@ -170,12 +180,40 @@ export async function bindDevice(code: string, name = '') {
   return syncNow(true);
 }
 
-export function unbindDevice() {
-  // the admin chose a device without a mosque on purpose → never auto-link it again
-  try { localStorage.setItem(LS_MANUAL, '1'); } catch { /* ignore */ }
+/**
+ * Un-links this device. It stays un-linked (no automatic linking, not even from the mosque's
+ * /m/<code> address it was opened with) until someone links it again on purpose.
+ * Its settings stop following the mosque: the device gets back its own settings from before it was
+ * linked (or the defaults). The device-only choices and the last timetable stay.
+ */
+export async function unbindDevice() {
+  const prev = status.binding?.code ?? null;
+  await flushPendingUpload(); // edits already made for that mosque still go to it
+  try {
+    localStorage.setItem(LS_MANUAL, '1');
+    if (prev) localStorage.setItem(LS_UNBOUND_CODE, prev);
+  } catch { /* ignore */ }
   syncUrl(null);
   writeJson(LS_BINDING, null);
-  set({ binding: null, mosqueVersion: null, timetableVersion: null, wilayatId: null, lastSyncAt: null, lastError: null });
+  set({ binding: null, mosqueVersion: null, timetableVersion: null, wilayatId: null, lastSyncAt: null, lastError: null, pendingUpload: false });
+  await restoreOwnSettings();
+  log('info', `فك ربط هذا الجهاز${prev ? ` بالمسجد ${prev}` : ''} — عادت إعدادات الجهاز المستقلة`);
+}
+
+/** Gives an un-linked device its own settings back (from before it was linked, or the defaults). */
+async function restoreOwnSettings() {
+  try { localStorage.setItem(LS_OWN_DONE, '1'); } catch { /* ignore */ }
+  const cur = getState().config;
+  let saved: { config?: unknown; adhkar?: AdhkarItem[] } | null = null;
+  try { saved = JSON.parse(localStorage.getItem(LS_LOCAL_PROFILE) || 'null'); } catch { saved = null; }
+  const own = saved?.config ? mergeConfig(saved.config) : defaultConfig();
+  for (const k of DEVICE_KEYS) (own.display as unknown as Record<string, unknown>)[k] = cur.display[k];
+  // the timetable on the device is still the last wilayat's — keep its location and calibration with it
+  own.mosque = { ...own.mosque, location: { ...cur.mosque.location } };
+  own.calc = { ...cur.calc };
+  own.timeOverrides = saved?.config ? own.timeOverrides : {};
+  await applyCloudData({ config: own, adhkar: Array.isArray(saved?.adhkar) && saved!.adhkar!.length ? saved!.adhkar : defaultAdhkar() });
+  resetUploadBaseline();
 }
 
 interface Bundle {
@@ -512,7 +550,11 @@ export async function flushPendingUpload() {
 }
 
 export function startCloud() {
-  const fromUrl = bindingFromUrl();
+  let fromUrl = bindingFromUrl();
+  // opened from the address of the mosque it was un-linked from (e.g. an old home-screen icon): stay un-linked
+  try { if (fromUrl && !status.binding && fromUrl === localStorage.getItem(LS_UNBOUND_CODE)) { fromUrl = null; syncUrl(null); } } catch { /* ignore */ }
+  // devices un-linked before this update still carry the mosque's settings → give them their own once
+  try { if (!status.binding && !fromUrl && localStorage.getItem(LS_MANUAL) && !localStorage.getItem(LS_OWN_DONE)) void restoreOwnSettings(); } catch { /* ignore */ }
   if (fromUrl && fromUrl !== status.binding?.code) void bindDevice(fromUrl);
   else if (status.binding) { syncUrl(status.binding.code); void syncNow(); }
   else void autoBindDefault();

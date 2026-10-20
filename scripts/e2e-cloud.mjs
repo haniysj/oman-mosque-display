@@ -386,6 +386,34 @@ await p.bringToFront();
   db.pw = 'secret123'; // later steps sign in with the original password
 }
 
+// 6g) Un-linking a device: it stays un-linked and its settings become its own again
+{
+  const nm = db.mosques.get('noor-muttrah');
+  nm.config.quiet.sleep = { enabled: true, wakeForPrayers: true, periods: [{ id: 's1', enabled: true, repeat: 'daily', fromDate: '', from: '00:00', toDate: '', to: '23:59' }] };
+  nm.version += 1;
+  const uc = await b.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
+  await wire(uc);
+  const u = await uc.newPage(); const uerrs = []; u.on('pageerror', (e) => uerrs.push(e.message));
+  const cfgOf = () => u.evaluate(async () => { const d = await new Promise((r) => { const q = indexedDB.open('oman-mosque-display', 1); q.onsuccess = () => r(q.result); }); return new Promise((r) => { const g = d.transaction('kv').objectStore('kv').get('config'); g.onsuccess = () => r(g.result); }); });
+  const bindingOf = () => u.evaluate(() => JSON.parse(localStorage.getItem('omd-cloud-binding') || 'null'));
+  await u.goto(BASE + '/m/noor-muttrah'); await u.waitForTimeout(3000);
+  const c1 = await cfgOf();
+  ok('unlink: device linked from the mosque address takes its settings', (await bindingOf())?.code === 'noor-muttrah' && c1.display.theme === 'maroon' && c1.quiet.sleep?.enabled === true, `${c1.display.theme}`);
+  await u.goto(BASE + '/m/noor-muttrah#/admin'); await u.waitForTimeout(1500);
+  await u.getByPlaceholder('كلمة المرور', { exact: true }).fill('secret123'); await u.waitForTimeout(2500);
+  await u.getByRole('button', { name: 'المساجد والمزامنة' }).first().click(); await u.waitForTimeout(500);
+  await u.getByRole('button', { name: 'فك الربط' }).click(); await u.waitForTimeout(200);
+  await u.getByRole('button', { name: 'تأكيد' }).click(); await u.waitForTimeout(1500);
+  const c2 = await cfgOf();
+  ok('unlink: settings are the device\'s own again (no mosque theme, no power-saving periods)', (await bindingOf()) === null && c2.display.theme !== 'maroon' && !c2.quiet.sleep?.enabled, `${c2.display.theme} sleep=${c2.quiet.sleep?.enabled}`);
+  ok('unlink: the address no longer points to the mosque', !(await u.evaluate(() => location.pathname)).startsWith('/m/'));
+  // opened again from the old mosque address (e.g. a home-screen icon) → stays un-linked
+  await u.goto(BASE + '/m/noor-muttrah'); await u.waitForTimeout(3500);
+  ok('unlink: opening the old mosque address does not link it again', (await bindingOf()) === null && (await cfgOf()).display.theme !== 'maroon');
+  ok('unlink: no JS errors', !uerrs.length, uerrs.join('|'));
+  await uc.close();
+}
+
 // 7) Import a timetable from an image (real OCR, no fake clock)
 const ocx = await b.newContext({ viewport: { width: 1366, height: 900 }, serviceWorkers: 'block' });
 await wire(ocx);

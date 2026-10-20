@@ -99,7 +99,7 @@ export function CloudSection() {
             <div className="flex flex-wrap gap-2">
               <Btn small onClick={() => void run(() => syncNow(true), 'تم تنزيل آخر نسخة من السحابة.')} disabled={!online || busy}><IconDownload size={14} />تحديث الآن</Btn>
               <CopyLink code={bound.code} />
-              <Btn small kind="danger" onClick={() => ask('فك ربط هذا الجهاز بالمسجد؟ تبقى البيانات الحالية على الجهاز، لكنه لن يتحدث تلقائياً.', unbindDevice)}>فك الربط</Btn>
+              <Btn small kind="danger" onClick={() => ask('فك ربط هذا الجهاز بالمسجد؟\nيبقى الجهاز غير مرتبط (لن يرتبط تلقائياً أبداً) حتى تربطه بنفسك، وتعود إعدادات العرض الخاصة بالجهاز مستقلة عن المسجد. يبقى آخر جدول مواقيت على الجهاز.', () => void unbindDevice())}>فك الربط</Btn>
             </div>
             <p className="m-0 text-[12px] leading-5 text-muted">يتحقق الجهاز من التحديثات كل 5 دقائق، وعند عودة الإنترنت، وعند فتح الصفحة. بدون إنترنت يعمل بآخر نسخة محفوظة.</p>
           </div>
