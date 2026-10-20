@@ -222,6 +222,8 @@ function WilayatEditor({ target, onBack }: { target: Target; onBack: () => void 
 
       {!loaded ? <p className="m-0 text-[13px] text-muted">جارٍ تحميل الجدول…</p> : (
         <>
+          <YearsCoverage name={name} gov={gov} wil={wil} cfg={cfg} schedule={schedule} profile={profile} officialDays={officialDays} disabled={!canSave || busy}
+            onApply={(next, p, what) => persist(next, p, what)} />
           <StepImport name={name} label={label} wil={wil} schedule={schedule} disabled={!canSave || busy}
             onApply={(next, what) => persist(next, profile, what)} />
           <StepCalibrate name={name} gov={gov} wil={wil} cfg={cfg} schedule={schedule} profile={profile} officialDays={officialDays} disabled={!canSave || busy} local={local}
@@ -335,16 +337,160 @@ function StepImport({ name, label, wil, schedule, disabled, onApply }: {
   );
 }
 
+// --------------------------------------------------------------- stored years (official / partial / calibrated / empty)
+
+type MonthState = 'official' | 'officialPart' | 'filled' | 'part' | 'empty';
+interface YearInfo { year: number; total: number; have: number; official: number; calibrated: number; admin: number; missing: number; months: { m: number; state: MonthState; official: number; have: number; total: number }[] }
+
+export function yearsInfo(schedule: PrayerSchedule | null, extraYears: number[] = []): YearInfo[] {
+  const byYear = new Map<number, YearInfo>();
+  const keys = Object.keys(schedule?.days ?? {});
+  const years = new Set<number>([...keys.map((k) => +k.slice(0, 4)), ...extraYears]);
+  if (!years.size) return [];
+  const lo = Math.min(...years), hi = Math.max(...years);
+  for (let y = lo; y <= hi; y++) {
+    const info: YearInfo = { year: y, total: 0, have: 0, official: 0, calibrated: 0, admin: 0, missing: 0, months: [] };
+    for (let m = 1; m <= 12; m++) {
+      const total = daysInMonth(y, m);
+      let have = 0, off = 0;
+      for (let d = 1; d <= total; d++) {
+        const rec = schedule?.days[`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`];
+        if (!rec) continue;
+        have++;
+        const src = rec.source ?? schedule!.meta.source;
+        if (src === 'official') off++; else if (src === 'admin') info.admin++; else info.calibrated++;
+      }
+      info.total += total; info.have += have; info.official += off;
+      const state: MonthState = off === total ? 'official' : off > 0 ? 'officialPart' : have === total ? 'filled' : have > 0 ? 'part' : 'empty';
+      info.months.push({ m, state, official: off, have, total });
+    }
+    info.missing = info.total - info.have;
+    byYear.set(y, info);
+  }
+  return [...byYear.values()];
+}
+
+const M_STYLE: Record<MonthState, string> = {
+  official: 'border-teal bg-teal text-white',
+  officialPart: 'border-teal bg-teal-soft text-teal',
+  filled: 'border-ink2/30 bg-[#E4E8F0] text-ink',
+  part: 'border-saffron/60 bg-saffron-soft text-[#8A5A0B]',
+  empty: 'border-dashed border-line bg-white text-muted',
+};
+const M_TITLE: Record<MonthState, string> = { official: 'رسمي بالكامل', officialPart: 'رسمي جزئياً', filled: 'محسوب بالمعايرة', part: 'ناقص', empty: 'فارغ' };
+
+function YearsCoverage({ name, gov, wil, cfg, schedule, profile, officialDays, disabled, onApply }: {
+  name: string; gov: string; wil: string; cfg: AppConfig; schedule: PrayerSchedule | null; profile: CalibrationProfile | null;
+  officialDays: DailyPrayerTimes[]; disabled: boolean;
+  onApply: (next: PrayerSchedule, p: CalibrationProfile | null, what: string) => Promise<void>;
+}) {
+  const thisYear = +muscatDateKey(now()).slice(0, 4);
+  const [extra, setExtra] = useState<number[]>([]);
+  const [err, setErr] = useState('');
+  const stored = Object.keys(schedule?.days ?? {}).map((k) => +k.slice(0, 4));
+  const last = stored.length ? Math.max(...stored) : thisYear;
+  // always show this year and the next one, plus any year the admin added
+  const info = useMemo(() => yearsInfo(schedule, [thisYear, thisYear + 1, ...extra]), [schedule, thisYear, extra]);
+  const w = findWilayat(gov, wil);
+  const ownProfile = profile && profile.reference.wilayatId === wil ? profile : null;
+  const canGen = !!ownProfile || officialDays.length >= 7 || !!profile;
+
+  const generate = async (year: number) => {
+    setErr('');
+    try {
+      let p = ownProfile;
+      if (!p && officialDays.length >= 7 && w) p = calibrate(officialDays, w.lat, w.lng, { wilayatId: wil, label: locationLabel(gov, wil) }, new Date().toISOString());
+      if (!p) p = profile;
+      if (!p) throw new Error('لا توجد مواقيت رسمية كافية للمعايرة — ارفع ملف الوزارة أولاً.');
+      const base = withoutGenerated(schedule, year);
+      const { schedule: next, added } = fillMissing(base, `${year}-01-01`, `${year}-12-31`, genCfg(cfg, gov, wil, p), new Date().toISOString());
+      await onApply(next, p, `توليد سنة ${year} بالمعايرة على ${p.stats.days} يوماً رسمياً — أُضيف ${added} يوماً (الأيام الرسمية لم تتغير)`);
+    } catch (e) { setErr((e as Error).message); }
+  };
+
+  const officialYears = info.filter((y) => y.official === y.total).length;
+  return (
+    <Card title="السنوات المخزنة" actions={<span className="flex flex-wrap gap-1.5">
+      {officialYears > 0 && <Badge tone="teal"><IconCheck size={12} />{officialYears} {officialYears === 1 ? 'سنة رسمية كاملة' : 'سنوات رسمية كاملة'}</Badge>}
+    </span>}>
+      <p className="m-0 mb-3 text-[13px] text-ink2">لكل سنة من جدول {name}: ما رُفع رسمياً من ملف وزارة الأوقاف، وما حُسب بالمعايرة، والأشهر الفارغة. التوليد بالمعايرة لا يغيّر أي يوم رسمي.</p>
+      <div className="flex flex-col gap-2.5" data-testid="years-coverage">
+        {info.map((y) => {
+          const status = y.official === y.total ? 'full' : y.official > 0 ? 'partial' : y.have === y.total ? 'calibrated' : y.have > 0 ? 'some' : 'empty';
+          const offMonths = y.months.filter((m) => m.official > 0).map((m) => GREGORIAN_MONTHS_AR[m.m - 1]);
+          return (
+            <section key={y.year} className="rounded-xl border border-line bg-white p-3" data-testid={`year-${y.year}`} aria-label={`سنة ${y.year}`}>
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <YearMark status={status} />
+                <b className="text-[17px] text-ink">{y.year}</b>
+                {status === 'full' && <Badge tone="teal">رسمي بالكامل</Badge>}
+                {status === 'partial' && <Badge tone="saffron">رسمي جزئياً — {offMonths.length} {offMonths.length === 1 ? 'شهر' : 'أشهر'}</Badge>}
+                {status === 'calibrated' && <Badge tone="ink">محسوب بالمعايرة (لا يوجد رسمي)</Badge>}
+                {status === 'some' && <Badge tone="saffron">ناقص — بدون رسمي</Badge>}
+                {status === 'empty' && <Badge tone="muted">فارغة</Badge>}
+                <span className="flex-1" />
+                <span className="text-[12px] text-ink2">
+                  رسمي <b className="text-teal">{y.official}</b>{y.calibrated > 0 && <> · معايرة <b>{y.calibrated}</b></>}{y.admin > 0 && <> · يدوي <b>{y.admin}</b></>}{y.missing > 0 && <> · فارغ <b className="text-rose">{y.missing}</b></>} / {y.total} يوماً
+                </span>
+              </div>
+              <div className="grid grid-cols-6 gap-1 sm:grid-cols-12">
+                {y.months.map((m) => (
+                  <div key={m.m} title={`${GREGORIAN_MONTHS_AR[m.m - 1]} ${y.year}: ${M_TITLE[m.state]}${m.state === 'officialPart' || m.state === 'part' ? ` (${m.state === 'officialPart' ? m.official : m.have}/${m.total})` : ''}`}
+                    className={`rounded-md border px-0.5 py-1 text-center text-[11px] font-bold leading-4 ${M_STYLE[m.state]}`}>
+                    {GREGORIAN_MONTHS_AR[m.m - 1].slice(0, 5)}
+                    <div className="text-[10px] font-semibold opacity-90">{m.state === 'official' ? '✓' : m.state === 'officialPart' ? `${m.official}/${m.total}` : m.state === 'filled' ? '≈' : m.state === 'part' ? `${m.have}/${m.total}` : '—'}</div>
+                  </div>
+                ))}
+              </div>
+              {status === 'partial' && <p className="m-0 mt-1.5 text-[12px] text-muted">الأشهر الرسمية: {offMonths.join('، ')}</p>}
+              {y.missing > 0 || y.calibrated > 0 ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Btn small kind="teal" disabled={disabled || !canGen} onClick={() => void generate(y.year)}>
+                    {y.missing > 0 ? `توليد ${y.year} بالمعايرة` : `إعادة توليد ${y.year}`}
+                  </Btn>
+                  {!canGen && <span className="text-[12px] text-muted">يحتاج 7 أيام رسمية على الأقل لهذه الولاية.</span>}
+                </div>
+              ) : null}
+            </section>
+          );
+        })}
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Btn small onClick={() => setExtra((e) => [...e, Math.max(last, thisYear + 1, ...e) + 1])}><IconPlus size={14} />إضافة سنة تالية</Btn>
+        <span className="flex flex-wrap items-center gap-2 text-[11.5px] text-ink2">
+          {(['official', 'officialPart', 'filled', 'part', 'empty'] as MonthState[]).map((k) => (
+            <span key={k} className="inline-flex items-center gap-1"><span className={`inline-block h-3 w-4 rounded border ${M_STYLE[k]}`} />{M_TITLE[k]}</span>
+          ))}
+        </span>
+      </div>
+      {profile && <p className="m-0 mt-2 text-[12px] text-muted">المعايرة الحالية: {profile.reference.label} — {profile.reference.days} يوماً رسمياً (مطابقة {pct(profile.stats)}%).</p>}
+      {err && <div className="mt-2"><Note tone="error">{err}</Note></div>}
+    </Card>
+  );
+}
+
+function YearMark({ status }: { status: 'full' | 'partial' | 'calibrated' | 'some' | 'empty' }) {
+  const c = { full: '#1F7A6D', partial: '#C9861A', calibrated: '#475569', some: '#C9861A', empty: '#9AA3B2' }[status];
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
+      <circle cx="12" cy="12" r="10" fill={status === 'full' ? c : 'none'} stroke={c} strokeWidth="2" strokeDasharray={status === 'empty' ? '3 3' : undefined} />
+      {status === 'full' && <path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />}
+      {(status === 'partial' || status === 'some') && <path d="M12 2a10 10 0 0 1 0 20z" fill={c} />}
+      {status === 'calibrated' && <path d="M7 10.5c1.6-1.6 3.4-1.6 5 0s3.4 1.6 5 0M7 14.5c1.6-1.6 3.4-1.6 5 0s3.4 1.6 5 0" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" />}
+    </svg>
+  );
+}
+
 // --------------------------------------------------------------- step 2: calibrate & complete the year
 
 function genCfg(cfg: AppConfig, gov: string, wil: string, profile: CalibrationProfile | null): AppConfig {
   return { ...cfg, mosque: { ...cfg.mosque, location: { governorateId: gov, wilayatId: wil, customLat: null, customLng: null } }, calc: { ...cfg.calc, profile, useMosqueCoords: false } };
 }
 
-/** Removes previously generated days (they are regenerated with the new calibration). */
-function withoutGenerated(s: PrayerSchedule | null): PrayerSchedule | null {
+/** Removes previously generated days of one year (they are regenerated with the new calibration). */
+function withoutGenerated(s: PrayerSchedule | null, year: number): PrayerSchedule | null {
   if (!s) return null;
-  const days = Object.fromEntries(Object.entries(s.days).filter(([, d]) => { const src = d.source ?? s.meta.source; return src !== 'calibrated' && src !== 'calculated'; }));
+  const days = Object.fromEntries(Object.entries(s.days).filter(([k, d]) => { const src = d.source ?? s.meta.source; return !k.startsWith(`${year}-`) || (src !== 'calibrated' && src !== 'calculated'); }));
   return { ...s, days };
 }
 
@@ -365,7 +511,7 @@ function StepCalibrate({ name, gov, wil, cfg, schedule, profile, officialDays, d
   useEffect(() => { if (!enough && !local) listTimetables().then((t) => setOthers(t.filter((x) => x.calibrated && x.wilayat_id !== wil))).catch(() => undefined); }, [enough, local, wil]);
 
   const complete = (p: CalibrationProfile | null, what: string) => {
-    const base = withoutGenerated(schedule);
+    const base = withoutGenerated(schedule, year);
     const { schedule: next, added } = fillMissing(base, `${year}-01-01`, `${year}-12-31`, genCfg(cfg, gov, wil, p), new Date().toISOString());
     return onApply(next, p, `${what} — أُكمل ${added} يوماً من سنة ${year}`);
   };
@@ -397,7 +543,7 @@ function StepCalibrate({ name, gov, wil, cfg, schedule, profile, officialDays, d
         الأيام الرسمية في الجدول: <b>{officialDays.length}</b>{months.length > 0 && <span className="text-muted"> — {months.map((m) => `${GREGORIAN_MONTHS_AR[+m.slice(5) - 1]} ${m.slice(0, 4)}`).join('، ')}</span>}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <div className="w-28"><Select value={String(year)} onChange={(v) => setYear(+v)} options={[thisYear, thisYear + 1, thisYear + 2].map((y) => ({ value: String(y), label: String(y) }))} /></div>
+        <div className="w-28"><Select value={String(year)} onChange={(v) => setYear(+v)} options={Array.from({ length: 6 }, (_, i) => thisYear - 1 + i).map((y) => ({ value: String(y), label: String(y) }))} /></div>
         <Btn kind="teal" disabled={disabled || !enough} onClick={run}>{profile ? 'إعادة المعايرة وإكمال سنة' : 'معايرة وإكمال سنة'} {year}</Btn>
       </div>
 
