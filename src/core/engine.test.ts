@@ -255,6 +255,8 @@ describe('12. mobile black-screen exception', () => {
     expect(classifyDevice({ ...base, screenWidth: 960, screenHeight: 540, userAgent: 'Mozilla/5.0 (Linux; Android 11; BRAVIA 4K) Chrome' })).toBe('tv');
     expect(classifyDevice({ ...base, screenWidth: 1024, screenHeight: 1366, userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari' })).toBe('tablet');
     expect(classifyDevice({ screenWidth: 1920, screenHeight: 1080, coarsePointer: false, maxTouchPoints: 0, userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130' })).toBe('desktop');
+    // Android TV box running a kiosk app (WebView says «Mobile», 960×540, no touch) → TV, not a phone
+    expect(classifyDevice({ screenWidth: 960, screenHeight: 540, coarsePointer: false, maxTouchPoints: 0, userAgent: 'Mozilla/5.0 (Linux; Android 9; MIBOX4 Build/PI; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.0.0 Mobile Safari/537.36' })).toBe('tv');
     expect(isPhone('auto', 'mobile')).toBe(true);
     expect(isPhone('tv', 'mobile')).toBe(false); // manual override wins
     expect(isPhone('mobile', 'tv')).toBe(true);

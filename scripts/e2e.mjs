@@ -150,6 +150,14 @@ await shot(browser, { name: 'sleep-tv', w: 1920, h: 1080, at: muscat(SAT, '23:10
 await shot(browser, { name: 'sleep-phone', w: IPHONE.viewport.width, h: IPHONE.viewport.height, at: muscat(SAT, '23:10:00'), ua: IPHONE.userAgent, isMobile: true,
   mutate: (b) => { b.config.quiet.sleep = { enabled: true, wakeForPrayers: true, periods: [{ id: 's1', enabled: true, repeat: 'daily', fromDate: '', from: '22:00', toDate: '', to: '03:00' }] }; return b; },
   check: async (p) => ok('power saving: phones keep the normal screen', (await p.locator('.quiet-screen').count()) === 0) });
+// Android TV box + kiosk app (Fully Kiosk…): WebView UA says «Mobile», 960×540, no touch → must act as a TV
+const KIOSK_UA = 'Mozilla/5.0 (Linux; Android 9; MIBOX4 Build/PI; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.0.0 Mobile Safari/537.36';
+await shot(browser, { name: 'kiosk-countdown', w: 960, h: 540, at: muscat(SAT, '15:33:20'), ua: KIOSK_UA,
+  check: async (p) => ok('kiosk WebView: countdown before the iqamah', (await p.locator('.countdown-digits').count()) === 1 && (await p.locator('.m-root').count()) === 0) });
+await shot(browser, { name: 'kiosk-quiet', w: 960, h: 540, at: muscat(SAT, '15:35:00'), ua: KIOSK_UA,
+  check: async (p) => ok('kiosk WebView: black screen after the iqamah', await p.locator('.quiet-screen').isVisible()) });
+await shot(browser, { name: 'kiosk-adhkar', w: 960, h: 540, at: muscat(SAT, '15:39:40'), ua: KIOSK_UA,
+  check: async (p) => ok('kiosk WebView: adhkar after the black screen', (await p.locator('.adhkar-text').count()) === 1) });
 await shot(browser, { name: 'quiet-phone-exception', w: IPHONE.viewport.width, h: IPHONE.viewport.height, at: muscat(SAT, '15:35:00'), ua: IPHONE.userAgent, isMobile: true,
   check: async (p) => ok('phone: no black screen', (await p.locator('.quiet-screen').count()) === 0 && (await p.locator('.m-table').isVisible())) });
 

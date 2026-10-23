@@ -25,6 +25,9 @@ export function classifyDevice(env: DeviceEnv): DeviceClass {
   if (TV_RE.test(ua)) return 'tv';
   const shortSide = Math.min(env.screenWidth, env.screenHeight);
   const touch = env.coarsePointer || env.maxTouchPoints > 1;
+  // Android with no touch screen at all = a TV / TV box. Kiosk apps (Fully Kiosk…) use the Android
+  // WebView, whose user agent says «Mobile» and whose screen is often 960×540 — never a phone.
+  if (/android/i.test(ua) && !env.coarsePointer && env.maxTouchPoints === 0) return 'tv';
   if (env.uaMobileHint === true || PHONE_RE.test(ua)) return shortSide >= 600 ? 'tablet' : 'mobile';
   // iPadOS reports a desktop Safari UA — detect by touch on a "Macintosh"
   if (/macintosh/i.test(ua) && env.maxTouchPoints > 1) return 'tablet';
