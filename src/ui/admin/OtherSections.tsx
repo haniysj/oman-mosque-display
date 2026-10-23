@@ -381,6 +381,7 @@ export function DiagnosticsSection({ onSimulate }: { onSimulate: (at: number, sp
             ['تغطية اليوم', cov.coversToday ? `نعم (+${cov.daysRemaining} يوماً)` : 'لا'],
             ['نوع الجهاز', `${device}${cfg.display.deviceMode !== 'auto' ? ` (يدوي: ${cfg.display.deviceMode})` : ''}`],
             ['تصحيح الساعة', `${Math.round(cfg.display.clockOffsetMs / 1000)} ثانية`],
+            ['المتصفح', <bdi dir="ltr" key="ua" className="break-all text-[12px]">{(/(Chrome|Chromium|Firefox|Version)\/[\d.]+/.exec(navigator.userAgent)?.[0] ?? '?') + (/\bwv\b/.test(navigator.userAgent) ? ' · WebView' : '')}</bdi>],
             ['الإصدار', <bdi dir="ltr" key="v">{__APP_VERSION__} · {__BUILD_ID__.slice(0, 16)}</bdi>],
             ['العمل دون إنترنت', pwa.offlineReady ? 'جاهز (الملفات محفوظة)' : pwa.supported ? 'جارٍ التجهيز…' : 'غير مدعوم في هذا المتصفح'],
             ['التخزين الدائم', persist === null ? 'غير معروف' : persist ? 'ممنوح' : 'غير ممنوح'],

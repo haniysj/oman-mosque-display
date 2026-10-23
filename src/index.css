@@ -546,3 +546,7 @@ button { font-family: inherit; }
 .quiet-fadeout { position: fixed; inset: 0; background: #000; z-index: 60; pointer-events: none; animation: quietOut 1.5s ease both; }
 @keyframes quietOut { from { opacity: 1; } to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .quiet-screen, .quiet-fadeout { animation-duration: .01s; } }
+
+/* never auto-darkened / recoloured by the browser (Chrome auto-dark, Android WebView kiosk apps) */
+:root { color-scheme: only light; }
+html, body { forced-color-adjust: none; }
