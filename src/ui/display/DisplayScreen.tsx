@@ -17,6 +17,7 @@ import { AdhkarScreen } from './AdhkarScreen';
 import { MosquePicker } from './MosquePicker';
 import { ReminderBell } from './ReminderBell';
 import { bindingFromUrl, getCloud, useCloud } from '../../services/cloud';
+import { setMosqueAppTitle } from '../../services/mosqueApp';
 
 const PRAYER_NAMES: Record<PrayerKey, string> = { fajr: 'الفجر', dhuhr: 'الظهر', asr: 'العصر', maghrib: 'المغرب', isha: 'العشاء' };
 const STAGE_W = 1920, STAGE_H = 1080;
@@ -93,6 +94,8 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
   const nameTaps = useRef(0);
   const onNameTap = useCallback(() => {
     const t = Date.now();
+    // a mosque's own app (/m/<code>) belongs to that mosque: the mosque cannot be changed from the screen
+    if (bindingFromUrl()) return;
     if (t - nameTaps.current < 450) { nameTaps.current = 0; setPicker(true); } else nameTaps.current = t;
   }, []);
 
@@ -137,6 +140,7 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
     state.plan?.isFriday && cfg.friday.themeVariation ? 'is-friday' : '',
   ].join(' ');
 
+  useEffect(() => { setMosqueAppTitle(cfg.mosque.nameAr); }, [cfg.mosque.nameAr]);
   const sim = simulationInfo();
   const cloudCode = useCloud().binding?.code ?? null;
   // black screen: fades in on its own (CSS); when it ends, a black layer fades out over the screen
@@ -346,7 +350,7 @@ function TvView({ state, cfg, hasSchedule, onOpenAdmin, onNameTap }: { state: Di
     <div className={`tv ${cd && d.countdownFocus ? 'is-countdown' : ''}`}>
       <header className={`tv-head tv-head--${d.namePosition}`}>
         {cfg.mosque.logoDataUrl && <img className="tv-logo" src={cfg.mosque.logoDataUrl} alt="" />}
-        <div className="tv-names name-tap" onClick={onNameTap} title="اضغط مرتين لتغيير المسجد">
+        <div className="tv-names name-tap" onClick={onNameTap} title={bindingFromUrl() ? undefined : "اضغط مرتين لتغيير المسجد"}>
           <NameFrame><FitText text={cfg.mosque.nameAr || 'اسم المسجد'} base={Math.round(84 * d.nameScale / 100)} min={40} lines={2} className="tv-name" /></NameFrame>
           {d.showEnglishName && cfg.mosque.nameEn && <div className="tv-name-en" dir="ltr">{cfg.mosque.nameEn}</div>}
         </div>
@@ -556,7 +560,7 @@ function MobileView({ state, cfg, hasSchedule, controls, onNameTap, fs, embedded
     <div className={`m-root ${cd && d.countdownFocus ? 'is-countdown' : ''}`}>
       <header className={`m-head m-head--${d.namePosition}`}>
         <div className="m-names">
-          <div onClick={onNameTap} role="button" aria-label="اضغط مرتين لتغيير المسجد" className="m-name-tap name-tap">
+          <div onClick={onNameTap} role="button" aria-label={bindingFromUrl() ? undefined : "اضغط مرتين لتغيير المسجد"} className="m-name-tap name-tap">
             <NameFrame className="name-frame--m"><FitText text={cfg.mosque.nameAr || 'اسم المسجد'} base={30} min={20} lines={2} className="m-name" /></NameFrame>
           </div>
           {d.showEnglishName && cfg.mosque.nameEn && <div className="m-name-en" dir="ltr">{cfg.mosque.nameEn}</div>}

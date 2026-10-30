@@ -195,6 +195,20 @@ const tvToday = await t.evaluate(() => new Intl.DateTimeFormat('en-CA', { timeZo
 const fmt12 = (hhmm) => { const [h, m] = hhmm.split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')}`; };
 const fajrMus = db.tables.get('muscat').schedule.days[tvToday]?.fajr, fajrSam = db.tables.get('samail').schedule.days[tvToday]?.fajr;
 await t.bringToFront(); await t.reload(); await t.waitForTimeout(2000);
+// the mosque's own app (/m/<code>): its own manifest + title, and the mosque can't be changed from the screen
+{
+  const mf = await t.evaluate(() => document.querySelector('link[rel="manifest"]')?.getAttribute('href'));
+  ok('mosque app: page uses the mosque\'s own manifest', mf === '/m/sq-muscat/manifest.webmanifest', mf);
+  ok('mosque app: app title = mosque name', (await t.title()).startsWith('جامع السلطان قابوس'), await t.title());
+  await t.locator('.name-tap').first().dblclick(); await t.waitForTimeout(800);
+  ok('mosque app: double-tap on the name does NOT open the mosque list', (await t.locator('.mp-sheet').count()) === 0);
+  const { buildManifest } = await import('../api/manifest.js');
+  const m = buildManifest('altaqwa', 'مسجد التقوى');
+  ok('mosque app manifest: own id / start / scope and the mosque name', m.id === '/m/altaqwa' && m.start_url === '/m/altaqwa' && m.scope === '/m/altaqwa' && m.name === 'مسجد التقوى' && m.short_name === 'مسجد التقوى', JSON.stringify(m).slice(0, 160));
+}
+// the general address: the mosque can be chosen with a double-tap (view only)
+await t.goto(BASE + '/'); await t.waitForTimeout(2000);
+ok('general app: keeps the general manifest', (await t.evaluate(() => document.querySelector('link[rel="manifest"]')?.getAttribute('href'))) === '/manifest.webmanifest');
 const before = await t.locator('.panel .row').first().textContent();
 await t.locator('.name-tap').first().dblclick(); await t.waitForTimeout(1500);
 await t.locator('.mp-item', { hasText: 'جامع سمائل' }).click(); await t.waitForTimeout(3000);
@@ -224,7 +238,7 @@ await p.screenshot({ path: `${OUT}/default-mosque.png` });
   await q.clock.setFixedTime(at);
   await q.goto(BASE + '/'); await q.waitForTimeout(3500);
   ok('new phone: linked to the default mosque automatically (no list, no settings)', (await q.locator('.mp-sheet').count()) === 0 && (await q.locator('.m-table tbody tr').count()) === 6 && (await q.locator('.m-name').textContent()).includes('جامع سمائل'));
-  ok('new phone: address becomes /m/<default> (for «Add to Home Screen»)', new URL(q.url()).pathname === '/m/samail-jami', q.url());
+  ok('new phone: stays on the general address (shows the default mosque without linking)', new URL(q.url()).pathname === '/' && (await q.evaluate(() => JSON.parse(localStorage.getItem('omd-cloud-binding') || 'null')))?.viewOnly === true, q.url());
   ok('new phone: no JS errors', qerrs.length === 0, qerrs.join('|'));
   await ph.close();
   // a new TV too
@@ -416,7 +430,7 @@ await p.bringToFront();
   ok('unlink: the address no longer points to the mosque', !(await u.evaluate(() => location.pathname)).startsWith('/m/'));
   // opened again from the old mosque address (e.g. a home-screen icon) → stays un-linked
   await u.goto(BASE + '/m/noor-muttrah'); await u.waitForTimeout(3500);
-  ok('unlink: opening the old mosque address does not link it again', (await bindingOf()) === null && (await cfgOf()).display.theme !== 'maroon');
+  ok('unlink: opening the mosque\'s own address shows it again but does NOT link the device', (await bindingOf())?.viewOnly === true);
   ok('unlink: no JS errors', !uerrs.length, uerrs.join('|'));
   await uc.close();
 }

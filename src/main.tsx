@@ -16,7 +16,9 @@ import { startClock } from './services/clock';
 import { registerPwa } from './services/pwa';
 import { requestPersistentStorage } from './store/db';
 import { startCloud } from './services/cloud';
+import { setupMosqueApp } from './services/mosqueApp';
 
+setupMosqueApp(); // a mosque's own address installs that mosque's own app
 startClock();
 void loadApp().then(() => {
   void registerPwa((m) => log('info', m));

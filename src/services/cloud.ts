@@ -182,7 +182,9 @@ export async function bindDevice(code: string, name = '', viewOnly = false) {
     try { localStorage.setItem(LS_LOCAL_PROFILE, JSON.stringify({ config, adhkar })); } catch { /* ignore */ }
   }
   if (!viewOnly) { try { localStorage.removeItem(LS_MANUAL); localStorage.removeItem(LS_UNBOUND_CODE); localStorage.removeItem(LS_OWN_DONE); } catch { /* ignore */ } }
-  syncUrl(code);
+  // a linked screen keeps its mosque address; just showing a mosque never changes the address
+  // (the general app stays general; a mosque's own app is already on its address)
+  if (!viewOnly) syncUrl(code);
   const prev = status.binding?.code;
   writeJson(LS_BINDING, { code, name, ...(viewOnly ? { viewOnly: true } : {}) });
   set({ binding: { code, name, ...(viewOnly ? { viewOnly: true } : {}) }, ...(prev !== code ? { mosqueVersion: null, timetableVersion: null, wilayatId: null, lastSyncAt: null } : {}) });
@@ -560,15 +562,14 @@ export async function flushPendingUpload() {
 }
 
 export function startCloud() {
+  // A mosque's own address / app (/m/<code>) always shows THAT mosque (view only — never linked).
   let fromUrl = bindingFromUrl();
-  // opened from the address of the mosque it was un-linked from (e.g. an old home-screen icon): stay un-linked
-  try { if (fromUrl && !status.binding && fromUrl === localStorage.getItem(LS_UNBOUND_CODE)) { fromUrl = null; syncUrl(null); } } catch { /* ignore */ }
   // devices un-linked before this update still carry the mosque's settings → give them their own once
   try { if (!status.binding && !fromUrl && localStorage.getItem(LS_MANUAL) && !localStorage.getItem(LS_OWN_DONE)) void restoreOwnSettings(); } catch { /* ignore */ }
   // a mosque address shows that mosque's times (view only); a device linked by a supervisor keeps its mosque
   if (fromUrl && isLinked() && fromUrl !== status.binding!.code) { syncUrl(status.binding!.code); fromUrl = null; }
   if (fromUrl && fromUrl !== status.binding?.code) void viewMosque(fromUrl);
-  else if (status.binding) { syncUrl(status.binding.code); void syncNow(); }
+  else if (status.binding) { if (isLinked() && !fromUrl) syncUrl(status.binding.code); void syncNow(); }
   else void autoBindDefault();
   const tick = () => { if (status.binding) void syncNow(); else void autoBindDefault(); };
   setInterval(tick, POLL_MS);
