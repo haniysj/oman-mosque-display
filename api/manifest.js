@@ -15,7 +15,7 @@ async function mosqueName(code) {
     if (!r.ok) return null;
     const list = await r.json();
     const m = Array.isArray(list) ? list.find((x) => x && x.code === code) : null;
-    return m ? String(m.name_ar || '') : null;
+    return m ? String(m.name_ar || '').replace(/\s+/g, ' ').trim() : null;
   } catch { return null; }
 }
 

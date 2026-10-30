@@ -15,6 +15,7 @@ export function setupMosqueApp() {
 
 /** The app / home-screen name follows the mosque's name (iPhone uses the page title). */
 export function setMosqueAppTitle(name: string) {
+  name = name.replace(/\s+/g, ' ').trim();
   if (!bindingFromUrl() || !name) return;
   if (document.title !== name) document.title = name;
   let meta = document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-title"]');
