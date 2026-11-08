@@ -36,7 +36,7 @@ export default async function handler(req, res) {
   const proto = req.headers['x-forwarded-proto'] || 'https';
   const origin = `${proto}://${host}`;
   let html = '';
-  try { const r = await fetch(`${origin}/index.html`, { headers: { 'x-omd-page': '1' } }); if (r.ok) html = await r.text(); } catch { /* fall back below */ }
+  try { const r = await fetch(`${origin}/index.html`, { headers: { 'x-omd-page': '1' } }); if (r.ok) { const t = await r.text(); if (t.includes('id="root"')) html = t; } } catch { /* fall back below */ }
   if (!html) { res.setHeader('Location', `/?m=${encodeURIComponent(code)}`); res.status(302).end(); return; }
   const valid = /^[a-z0-9-]{3,40}$/.test(code);
   const name = valid ? await mosqueName(code) : null;
