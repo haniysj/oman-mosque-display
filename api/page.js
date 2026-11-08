@@ -21,7 +21,11 @@ export function renderPage(html, code, name, origin) {
     `<meta property="og:title" content="${esc(title)}" />`,
     `<meta property="og:description" content="${esc(desc)}" />`,
     `<meta property="og:url" content="${esc(url)}" />`,
-    `<meta property="og:image" content="${esc(origin)}/icon-512.png" />`,
+    // a small square icon → messaging apps show a small thumbnail beside the text (a large image is shown full width)
+    `<meta property="og:image" content="${esc(origin)}/icon-192.png" />`,
+    `<meta property="og:image:width" content="192" />`,
+    `<meta property="og:image:height" content="192" />`,
+    `<meta property="og:image:alt" content="${esc(name || 'مواقيت المسجد')}" />`,
     `<meta property="og:locale" content="ar_OM" />`,
     `<meta name="twitter:card" content="summary" />`,
     `<link rel="canonical" href="${esc(url)}" />`,

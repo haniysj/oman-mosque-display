@@ -206,7 +206,7 @@ await t.bringToFront(); await t.reload(); await t.waitForTimeout(2000);
   const { renderPage } = await import('../api/page.js');
   const fs0 = await import('node:fs');
   const html = renderPage(fs0.readFileSync('dist/index.html', 'utf8'), 'taqwa', 'مسجد التقوى', 'https://example.app');
-  ok('shared link: page title + preview carry the mosque name', html.includes('<title>مسجد التقوى — مواقيت الصلاة</title>') && html.includes('og:title" content="مسجد التقوى — مواقيت الصلاة"') && html.includes('href="/m/taqwa/manifest.webmanifest"') && html.includes('apple-mobile-web-app-title" content="مسجد التقوى"') && html.includes('window.__MOSQUE__'), html.slice(0, 200));
+  ok('shared link: page title + preview carry the mosque name', html.includes('<title>مسجد التقوى — مواقيت الصلاة</title>') && html.includes('og:title" content="مسجد التقوى — مواقيت الصلاة"') && html.includes('href="/m/taqwa/manifest.webmanifest"') && html.includes('apple-mobile-web-app-title" content="مسجد التقوى"') && html.includes('window.__MOSQUE__') && html.includes('icon-192.png'), html.slice(0, 200));
   const m = buildManifest('altaqwa', 'مسجد التقوى');
   ok('mosque app manifest: own id / start / scope and the mosque name', m.id === '/m/altaqwa' && m.start_url === '/m/altaqwa' && m.scope === '/m/altaqwa' && m.name === 'مسجد التقوى' && m.short_name === 'مسجد التقوى', JSON.stringify(m).slice(0, 160));
 }
