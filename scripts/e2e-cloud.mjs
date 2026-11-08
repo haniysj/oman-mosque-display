@@ -203,6 +203,10 @@ await t.bringToFront(); await t.reload(); await t.waitForTimeout(2000);
   await t.locator('.name-tap').first().dblclick(); await t.waitForTimeout(800);
   ok('mosque app: double-tap on the name does NOT open the mosque list', (await t.locator('.mp-sheet').count()) === 0);
   const { buildManifest } = await import('../api/manifest.js');
+  const { renderPage } = await import('../api/page.js');
+  const fs0 = await import('node:fs');
+  const html = renderPage(fs0.readFileSync('dist/index.html', 'utf8'), 'taqwa', 'مسجد التقوى', 'https://example.app');
+  ok('shared link: page title + preview carry the mosque name', html.includes('<title>مسجد التقوى — مواقيت الصلاة</title>') && html.includes('og:title" content="مسجد التقوى — مواقيت الصلاة"') && html.includes('href="/m/taqwa/manifest.webmanifest"') && html.includes('apple-mobile-web-app-title" content="مسجد التقوى"') && html.includes('window.__MOSQUE__'), html.slice(0, 200));
   const m = buildManifest('altaqwa', 'مسجد التقوى');
   ok('mosque app manifest: own id / start / scope and the mosque name', m.id === '/m/altaqwa' && m.start_url === '/m/altaqwa' && m.scope === '/m/altaqwa' && m.name === 'مسجد التقوى' && m.short_name === 'مسجد التقوى', JSON.stringify(m).slice(0, 160));
 }
@@ -240,6 +244,19 @@ await p.screenshot({ path: `${OUT}/default-mosque.png` });
   ok('new phone: linked to the default mosque automatically (no list, no settings)', (await q.locator('.mp-sheet').count()) === 0 && (await q.locator('.m-table tbody tr').count()) === 6 && (await q.locator('.m-name').textContent()).includes('جامع سمائل'));
   ok('new phone: stays on the general address (shows the default mosque without linking)', new URL(q.url()).pathname === '/' && (await q.evaluate(() => JSON.parse(localStorage.getItem('omd-cloud-binding') || 'null')))?.viewOnly === true, q.url());
   ok('new phone: no JS errors', qerrs.length === 0, qerrs.join('|'));
+  // then the phone opens another mosque's own link: a loading screen, never the default mosque first
+  await q.route(/rpc\/mosque_bundle/, async (route) => { await new Promise((r) => setTimeout(r, 2500)); await route.fallback(); });
+  await q.goto(BASE + '/m/noor-muttrah'); await q.waitForTimeout(700);
+  const loadingShown = (await q.getByTestId('mosque-loading').count()) === 1;
+  const defaultShown = (await q.locator('.m-name').count()) > 0;
+  await q.screenshot({ path: `${OUT}/mosque-loading.png` });
+  ok('mosque link: a loading screen first — the default mosque is not shown meanwhile', loadingShown && !defaultShown);
+  await q.waitForTimeout(4000);
+  ok('mosque link: then that mosque\'s times appear', (await q.getByTestId('mosque-loading').count()) === 0 && (await q.locator('.m-name').textContent()).includes('مسجد النور'));
+  // reopening (offline-first): its own data shows at once, no loading screen
+  await q.unroute(/rpc\/mosque_bundle/);
+  await q.reload(); await q.waitForTimeout(400);
+  ok('mosque link: reopening shows it straight away (no loading screen)', (await q.getByTestId('mosque-loading').count()) === 0 && (await q.locator('.m-name').textContent()).includes('مسجد النور'));
   await ph.close();
   // a new TV too
   const tv3 = await b.newContext({ viewport: { width: 1920, height: 1080 }, serviceWorkers: 'block' });

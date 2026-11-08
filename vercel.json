@@ -9,6 +9,10 @@
       "destination": "/api/manifest?code=:code"
     },
     {
+      "source": "/m/:code",
+      "destination": "/api/page?code=:code"
+    },
+    {
       "source": "/((?!assets/|data/|icons/|api/|.*\\..*).*)",
       "destination": "/index.html"
     }

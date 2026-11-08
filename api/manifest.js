@@ -5,7 +5,7 @@
 const URL_BASE = process.env.VITE_SUPABASE_URL || 'https://gfuvletkmpdeykwlqtah.supabase.co';
 const KEY = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_yJo_1cjKfA5y_40F88lw6g_1MyktLwU';
 
-async function mosqueName(code) {
+export async function mosqueName(code) {
   try {
     const r = await fetch(`${URL_BASE}/rest/v1/rpc/mosque_list`, {
       method: 'POST',

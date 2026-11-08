@@ -550,3 +550,32 @@ button { font-family: inherit; }
 /* never auto-darkened / recoloured by the browser (Chrome auto-dark, Android WebView kiosk apps) */
 :root { color-scheme: only light; }
 html, body { forced-color-adjust: none; }
+
+/* ---------- loading a mosque's own address (/m/<code>) ---------- */
+.mosque-loading {
+  position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 80;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at 50% 40%, #0E4A3C 0%, #062A22 62%, #041C17 100%);
+  color: #F5EBD3; font-family: 'Cairo', system-ui, sans-serif; text-align: center; padding: 24px;
+}
+.ml-star { width: 132px; height: 132px; }
+.ml-star rect { fill: none; stroke: #D4A845; stroke-width: 2.4; }
+.ml-spin { transform-origin: 60px 60px; -webkit-animation: mlSpin 9s linear infinite; animation: mlSpin 9s linear infinite; }
+.ml-core { fill: #D4A845; -webkit-animation: mlPulse 2.2s ease-in-out infinite; animation: mlPulse 2.2s ease-in-out infinite; transform-origin: 60px 60px; }
+.ml-ring { fill: none; stroke: rgba(212, 168, 69, .35); stroke-width: 1.5; stroke-dasharray: 6 8; }
+.ml-name { margin-top: 26px; font-size: 34px; font-weight: 800; color: #F0D58A; line-height: 1.4; }
+.ml-text { margin-top: 12px; font-size: 18px; font-weight: 600; opacity: .92; }
+.ml-dots i { display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: #D4A845; -webkit-animation: mlDot 1.2s infinite ease-in-out; animation: mlDot 1.2s infinite ease-in-out; }
+.ml-dots i:nth-child(2) { -webkit-animation-delay: .2s; animation-delay: .2s; }
+.ml-dots i:nth-child(3) { -webkit-animation-delay: .4s; animation-delay: .4s; }
+.ml-dhikr { margin-top: 34px; font-family: 'Thmanyah Serif Text', 'Cairo', serif; font-size: 24px; color: rgba(245, 235, 211, .8); -webkit-animation: mlFade 2.2s ease both; animation: mlFade 2.2s ease both; }
+.ml-retry { margin-top: 18px; padding: 10px 22px; border-radius: 14px; border: 1px solid #D4A845; background: rgba(212, 168, 69, .14); color: #F0D58A; font: inherit; font-weight: 700; cursor: pointer; }
+@-webkit-keyframes mlSpin { to { -webkit-transform: rotate(360deg); } }
+@keyframes mlSpin { to { transform: rotate(360deg); } }
+@-webkit-keyframes mlPulse { 50% { -webkit-transform: scale(.7); opacity: .6; } }
+@keyframes mlPulse { 50% { transform: scale(.7); opacity: .6; } }
+@-webkit-keyframes mlDot { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+@keyframes mlDot { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+@-webkit-keyframes mlFade { 0% { opacity: 0; } 20%, 80% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes mlFade { 0% { opacity: 0; } 20%, 80% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ml-spin, .ml-core, .ml-dhikr, .ml-dots i { -webkit-animation: none; animation: none; } }

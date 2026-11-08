@@ -18,6 +18,7 @@ import { MosquePicker } from './MosquePicker';
 import { ReminderBell } from './ReminderBell';
 import { bindingFromUrl, getCloud, useCloud } from '../../services/cloud';
 import { setMosqueAppTitle } from '../../services/mosqueApp';
+import { MosqueLoading } from './MosqueLoading';
 
 const PRAYER_NAMES: Record<PrayerKey, string> = { fajr: 'الفجر', dhuhr: 'الظهر', asr: 'العصر', maghrib: 'المغرب', isha: 'العشاء' };
 const STAGE_W = 1920, STAGE_H = 1080;
@@ -142,7 +143,8 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
 
   useEffect(() => { setMosqueAppTitle(cfg.mosque.nameAr); }, [cfg.mosque.nameAr]);
   const sim = simulationInfo();
-  const cloudCode = useCloud().binding?.code ?? null;
+  const cloudState = useCloud();
+  const cloudCode = cloudState.binding?.code ?? null;
   // black screen: fades in on its own (CSS); when it ends, a black layer fades out over the screen
   const prevPhase = useRef(state.phase);
   const [fadeOut, setFadeOut] = useState(false);
@@ -192,6 +194,11 @@ export function DisplayScreen({ onOpenAdmin, adminOpen }: { onOpenAdmin: () => v
       </div>
     );
   }
+
+  // a mosque's own address: nothing else is shown until THAT mosque is loaded (never the default one first)
+  const urlCode = bindingFromUrl();
+  const waitingForMosque = !!urlCode && !(cloudState.binding?.code === urlCode && cloudState.mosqueVersion != null);
+  if (waitingForMosque && !adminOpen) return <MosqueLoading code={urlCode} />;
 
   return (
     <div className={`display-root ${themeClass} ${portrait ? 'is-portrait' : ''} ${cfg.display.presentation ? 'is-presentation' : ''}`} onPointerDown={onPointer}>
