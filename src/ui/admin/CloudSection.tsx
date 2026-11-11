@@ -10,11 +10,24 @@ import type { AppConfig } from '../../domain/types';
 import { MosqueEditor, WilayatTimetableHint } from './MosqueEditor';
 import { useOnline } from '../../services/platform';
 import { Badge, Btn, Card, Field, Grid, Note, Select, useConfirm } from './kit';
-import { IconCheck, IconDownload, IconEdit, IconLock, IconPlus, IconRestore, IconTrash, IconWifiOff } from '../common/icons';
+import { ScreenPreview } from '../portal/Portal';
+import { IconCheck, IconEye, IconDownload, IconEdit, IconLock, IconPlus, IconRestore, IconTrash, IconWifiOff } from '../common/icons';
 
 const fmt = (iso: string | null) => { if (!iso) return '—'; try { return new Date(iso).toLocaleString('ar-OM-u-nu-latn', { timeZone: 'Asia/Muscat', dateStyle: 'medium', timeStyle: 'short' }); } catch { return iso; } };
 const linkFor = (code: string) => `${location.origin}/m/${code}`;
 const inputCls = 'h-11 w-full rounded-xl border border-line bg-white px-3 text-[15px] text-ink outline-none focus:border-teal focus:ring-2 focus:ring-teal-soft';
+
+/** Blue eye: preview the mosque's real screen (TV / phone). */
+function PreviewBtn({ code, name }: { code: string; name: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} title={`معاينة شاشة ${name}`} aria-label={`معاينة شاشة ${name}`} data-testid={`preview-${code}`}
+        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#2563EB]/40 bg-[#EEF4FF] text-[#2563EB] hover:bg-[#E0EBFF]"><IconEye size={16} /></button>
+      {open && <ScreenPreview mosque={{ code, name_ar: name }} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
 
 function CopyLink({ code }: { code: string }) {
   const [ok, setOk] = useState(false);
@@ -180,6 +193,7 @@ export function CloudSection() {
                       <div className="flex flex-wrap justify-center gap-1.5">
                         {bound?.code === m.code ? <Badge tone="teal">هذا الجهاز</Badge> : <Btn small disabled={busy} onClick={() => ask(`ربط هذا الجهاز بـ «${m.name_ar}»؟\nستُستبدل إعدادات هذا الجهاز وجدوله بنسخة المسجد.`, () => void run(() => bindDevice(m.code, m.name_ar), `تم ربط الجهاز بـ «${m.name_ar}».`))}>ربط</Btn>}
                         <CopyLink code={m.code} />
+                        <PreviewBtn code={m.code} name={m.name_ar} />
                         {cloud.admin && <Btn small disabled={busy || !online} onClick={() => openEdit(m.code)} title={`تعديل ${m.name_ar}`}><IconEdit size={14} /></Btn>}
                         {cloud.admin && <Btn small kind="danger" title={`حذف ${m.name_ar}`} disabled={busy} onClick={() => ask(`حذف «${m.name_ar}» من السحابة؟`, () => ask(`تأكيد نهائي: حذف «${m.name_ar}» (${m.code}). الشاشات المرتبطة به تتوقف عن التحديث وتبقى بآخر نسخة.`, () => void run(() => deleteMosque(m.code), 'تم الحذف.')))}><IconTrash size={14} /></Btn>}
                       </div>

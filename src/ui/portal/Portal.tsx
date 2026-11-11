@@ -224,7 +224,7 @@ function Pill({ ok, children }: { ok?: boolean; children: ReactNode }) {
 }
 
 /** «معاينة الشاشة»: the mosque's real screen inside a frame (TV 1920×1080 or phone), scaled to fit. */
-function ScreenPreview({ mosque, onClose }: { mosque: MosqueSummary; onClose: () => void }) {
+export function ScreenPreview({ mosque, onClose }: { mosque: Pick<MosqueSummary, 'code' | 'name_ar'>; onClose: () => void }) {
   const [device, setDevice] = useState<'tv' | 'phone'>('tv');
   const [vp, setVp] = useState({ w: innerWidth, h: innerHeight });
   useEffect(() => {
@@ -239,7 +239,7 @@ function ScreenPreview({ mosque, onClose }: { mosque: MosqueSummary; onClose: ()
     <button onClick={() => setDevice(d)} className={`h-8 rounded-lg px-3 text-[13px] font-bold ${device === d ? 'bg-[#D4A845] text-[#062A22]' : 'text-[#F5EBD3] hover:bg-white/10'}`}>{label}</button>
   );
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center bg-[#041C17] p-4" role="dialog" aria-label={`معاينة شاشة ${mosque.name_ar}`} data-testid="screen-preview">
+    <div className="fixed inset-0 z-[200] flex flex-col items-center bg-[#041C17] p-4" role="dialog" aria-label={`معاينة شاشة ${mosque.name_ar}`} data-testid="screen-preview">
       <div className="mb-3 flex w-full max-w-5xl flex-wrap items-center gap-2 text-[#F5EBD3]">
         <IconEye size={18} />
         <b className="text-[16px]">معاينة شاشة {mosque.name_ar}</b>
@@ -249,7 +249,7 @@ function ScreenPreview({ mosque, onClose }: { mosque: MosqueSummary; onClose: ()
         <button onClick={onClose} aria-label="إغلاق المعاينة" className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20"><IconClose size={18} /></button>
       </div>
       <div dir="ltr" style={{ width: w * scale, height: h * scale, position: 'relative' }} className={`overflow-hidden bg-black shadow-2xl ${device === 'phone' ? 'rounded-[28px] ring-4 ring-[#1f2a2a]' : 'rounded-lg ring-1 ring-[#D4A845]/30'}`}>
-        <iframe key={device} title={`شاشة ${mosque.name_ar}`} src={`/m/${mosque.code}`} style={{ position: 'absolute', left: 0, top: 0, display: 'block', width: w, height: h, maxWidth: 'none', maxHeight: 'none', border: 0, transform: `scale(${scale})`, transformOrigin: '0 0' }} />
+        <iframe key={device} title={`شاشة ${mosque.name_ar}`} src={`/m/${mosque.code}?preview=1`} style={{ position: 'absolute', left: 0, top: 0, display: 'block', width: w, height: h, maxWidth: 'none', maxHeight: 'none', border: 0, transform: `scale(${scale})`, transformOrigin: '0 0' }} />
       </div>
       <p className="m-0 mt-2 text-[12px] text-[#F5EBD3]/60">هذه هي الشاشة الحقيقية للمسجد كما تظهر الآن ({w}×{h}).</p>
     </div>

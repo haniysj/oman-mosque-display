@@ -8,7 +8,9 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import type { AdhkarItem, AppConfig, LogEntry, PrayerSchedule } from '../domain/types';
 
-const DB_NAME = 'oman-mosque-display';
+import { PREVIEW } from '../services/previewMode';
+// a screen preview uses its own database (never this device's mosque, settings or times)
+const DB_NAME = PREVIEW ? `oman-mosque-display-preview-${location.pathname.replace(/[^a-z0-9-]/gi, '')}` : 'oman-mosque-display';
 const DB_VERSION = 1;
 const MAX_LOGS = 500;
 

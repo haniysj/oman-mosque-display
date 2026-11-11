@@ -110,6 +110,8 @@ async function rpc<T>(fn: string, args: Record<string, unknown> = {}): Promise<T
       const code = Object.keys(ERR_AR).find((k) => msg.includes(k));
       if (res.status === 404 || /Could not find the function/i.test(msg)) throw new MissingRpcError(fn);
       if (/violates check constraint.*code/i.test(msg)) throw new Error('رمز المسجد غير صالح: أحرف إنجليزية صغيرة وأرقام وشرطة فقط (3–40)');
+      // the saved sign-in session ended (expired / password changed) → sign in again
+      if (/BAD_PASSWORD/.test(msg) && adminPassword?.startsWith('omds_') && JSON.stringify(args).includes(adminPassword)) { endSession(false); throw new Error('انتهت جلسة الدخول — سجّل الدخول من جديد'); }
       throw new Error(code ? ERR_AR[code] : `خطأ من الخادم (${res.status})`);
     }
     return (text ? JSON.parse(text) : null) as T;
@@ -353,8 +355,41 @@ export async function adminLoginOffline(password: string) {
   throw new Error('كلمة المرور غير صحيحة');
 }
 
+// Staying signed in after a reload: the server gives a random session token (valid 12 hours) that is
+// kept on this device instead of the password, and is used in its place.
+const LS_SESSION = 'omd-admin-session';
+type Session = { token: string; role: 'super' | 'mosque'; codes: string[]; exp: number };
+let sessionTimer: ReturnType<typeof setTimeout> | null = null;
+function applySession(sx: Session) {
+  adminPassword = sx.token; set({ admin: true, role: sx.role, codes: sx.codes });
+  if (sessionTimer) clearTimeout(sessionTimer);
+  sessionTimer = setTimeout(() => endSession(false), Math.min(sx.exp - Date.now(), 2 ** 31 - 1));
+}
+async function startSession(password: string) {
+  try {
+    const r = await rpc<{ token: string; role: 'super' | 'mosque'; codes?: string[]; expires_at: string } | null>('mosque_session_start', { p_password: password });
+    if (!r?.token) return;
+    const sx: Session = { token: r.token, role: r.role === 'mosque' ? 'mosque' : 'super', codes: r.codes ?? [], exp: Date.parse(r.expires_at) || Date.now() + 12 * 3600e3 };
+    writeJson(LS_SESSION, sx); applySession(sx);
+  } catch { /* older server: the password stays in memory only */ }
+}
+function endSession(tellServer: boolean) {
+  const tok = adminPassword?.startsWith('omds_') ? adminPassword : readJson<Session>(LS_SESSION)?.token;
+  try { localStorage.removeItem(LS_SESSION); } catch { /* ignore */ }
+  if (sessionTimer) { clearTimeout(sessionTimer); sessionTimer = null; }
+  if (tellServer && tok) void rpc('mosque_session_end', { p_token: tok }).catch(() => undefined);
+  adminPassword = null; set({ admin: false, role: null, codes: [], pendingUpload: false });
+}
+/** Restores a saved sign-in (if still valid) when the app starts. */
+export function restoreSession() {
+  const sx = readJson<Session>(LS_SESSION);
+  if (sx?.token && sx.exp > Date.now() + 30e3) applySession(sx);
+  else if (sx) { try { localStorage.removeItem(LS_SESSION); } catch { /* ignore */ } }
+}
+
 const signedIn = (password: string, role: 'super' | 'mosque', codes: string[]) => {
   adminPassword = password; set({ admin: true, role, codes }); void rememberVerifier(password, role, codes);
+  void startSession(password);
 };
 export async function adminInit(password: string) { await rpc('mosque_admin_init', { p_password: password }); signedIn(password, 'super', []); }
 /** General administrator password → everything; a mosque password → that mosque's settings only. */
@@ -369,8 +404,8 @@ export async function adminLogin(password: string) {
     signedIn(password, 'super', []);
   }
 }
-export function adminLogout() { adminPassword = null; set({ admin: false, role: null, codes: [], pendingUpload: false }); }
-export async function adminChangePassword(oldP: string, newP: string) { await rpc('mosque_admin_change_password', { p_old: oldP, p_new: newP }); adminPassword = newP; void rememberVerifier(newP, 'super', []); }
+export function adminLogout() { endSession(true); }
+export async function adminChangePassword(oldP: string, newP: string) { await rpc('mosque_admin_change_password', { p_old: oldP, p_new: newP }); adminPassword = newP; void rememberVerifier(newP, 'super', []); await startSession(newP); }
 
 const requirePw = () => { if (!adminPassword) throw new Error('سجّل الدخول كمشرف أولاً'); return adminPassword; };
 
@@ -562,6 +597,7 @@ export async function flushPendingUpload() {
 }
 
 export function startCloud() {
+  restoreSession();
   // A mosque's own address / app (/m/<code>) always shows THAT mosque (view only — never linked).
   let fromUrl = bindingFromUrl();
   // devices un-linked before this update still carry the mosque's settings → give them their own once

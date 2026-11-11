@@ -7,20 +7,28 @@ const results = [];
 const ok = (n, c, x = '') => { results.push(c); console.log(`${c ? 'PASS' : 'FAIL'}  ${n} ${x}`); };
 
 // ---- fake backend (mirrors supabase/mosque-cloud.sql semantics)
-const db = { pw: null, mosques: new Map(), tables: new Map(), def: null, mpw: new Map() };
+const db = { pw: null, mosques: new Map(), tables: new Map(), def: null, mpw: new Map(), sessions: new Map() };
 const calls = [];
 function handle(fn, a) {
   calls.push(fn);
+  // a session token stands for the password it was started with (like the v5 SQL)
+  if (typeof a.p_password === 'string' && a.p_password.startsWith('omds_') && fn !== 'mosque_session_start') {
+    const sx = db.sessions.get(a.p_password);
+    if (!sx) throw 'BAD_PASSWORD';
+    a = { ...a, p_password: sx.pw };
+  }
   const auth = () => { if (!db.pw) throw 'ADMIN_NOT_INITIALIZED'; if (a.p_password !== db.pw) throw 'BAD_PASSWORD'; };
   switch (fn) {
     case 'mosque_admin_status': return { initialized: !!db.pw };
+    case 'mosque_session_start': { if (String(a.p_password).startsWith('omds_')) throw 'BAD_PASSWORD'; const r = handle('mosque_auth', a); const token = 'omds_' + Math.random().toString(36).slice(2); db.sessions.set(token, { pw: a.p_password }); return { ...r, token, expires_at: new Date(Date.now() + 12 * 3600e3).toISOString() }; }
+    case 'mosque_session_end': return db.sessions.delete(a.p_token);
     case 'mosque_admin_init': if (db.pw) throw 'ALREADY_INITIALIZED'; db.pw = a.p_password; return true;
     case 'mosque_admin_login': auth(); return true;
     case 'mosque_auth': { if (db.pw && a.p_password === db.pw) return { role: 'super' }; const codes = [...db.mpw].filter(([, v]) => v === a.p_password).map(([k]) => k).sort(); if (!codes.length) throw 'BAD_PASSWORD'; return { role: 'mosque', codes }; }
     case 'mosque_manager_update': { if (!(a.p_password === db.pw || db.mpw.get(a.p_code) === a.p_password)) throw 'BAD_PASSWORD'; const m = db.mosques.get(a.p_code); if (!m) throw 'mosque_not_found'; if (a.p_config) m.config = a.p_config; if (a.p_adhkar) m.adhkar = a.p_adhkar; m.version++; return { version: m.version }; }
     case 'mosque_admin_set_mosque_password': auth(); if (!a.p_new) db.mpw.delete(a.p_code); else { if (a.p_new.length < 4) throw 'PASSWORD_TOO_SHORT'; db.mpw.set(a.p_code, a.p_new); } return true;
     case 'mosque_admin_mosque_passwords': auth(); return [...db.mpw.keys()].map((code) => ({ code, updated_at: '' }));
-    case 'mosque_admin_change_password': if (a.p_old !== db.pw) throw 'BAD_PASSWORD'; if (!a.p_new || a.p_new.length < 6) throw 'PASSWORD_TOO_SHORT'; db.pw = a.p_new; return true;
+    case 'mosque_admin_change_password': if (a.p_old !== db.pw || String(a.p_old).startsWith('omds_')) throw 'BAD_PASSWORD'; if (!a.p_new || a.p_new.length < 6) throw 'PASSWORD_TOO_SHORT'; db.pw = a.p_new; for (const [k, v] of db.sessions) if (v.pw === a.p_old) db.sessions.delete(k); return true;
     case 'mosque_default_get': { const m = db.def && db.mosques.get(db.def); return m ? { code: m.code, name_ar: m.name_ar, governorate_id: m.governorate_id, wilayat_id: m.wilayat_id } : null; }
     case 'mosque_admin_set_default': auth(); if (a.p_code && !db.mosques.has(a.p_code)) throw 'mosque_not_found'; db.def = a.p_code || null; return true;
     case 'mosque_list': return [...db.mosques.values()].sort((x, y) => (x.governorate_id + x.wilayat_id + x.name_ar).localeCompare(y.governorate_id + y.wilayat_id + y.name_ar)).map((m) => ({ code: m.code, name_ar: m.name_ar, governorate_id: m.governorate_id, wilayat_id: m.wilayat_id, version: m.version, updated_at: new Date().toISOString(), timetable_version: db.tables.get(m.wilayat_id)?.version ?? null, timetable_days: Object.keys(db.tables.get(m.wilayat_id)?.schedule.days ?? {}).length }));
@@ -59,9 +67,15 @@ await p.getByPlaceholder('تأكيد كلمة المرور').fill('secret123');
 await p.getByRole('button', { name: 'إنشاء والدخول' }).click(); await p.clock.runFor(1200);
 ok('admin password created', db.pw === 'secret123');
 ok('settings open after sign-in', (await p.getByText('المساجد والمزامنة').count()) > 0);
-// reload → locked again; wrong password refused; right password opens
+await p.waitForFunction(() => !!localStorage.getItem('omd-admin-session'), null, { timeout: 5000 }).catch(() => {});
+// reload → still signed in (a 12-hour session token, never the password, is kept on the device)
+await p.reload(); await p.clock.runFor(1200); await p.waitForTimeout(500);
+ok('reload → still signed in', (await p.getByRole('dialog', { name: 'دخول المشرف' }).count()) === 0 && (await p.getByText('المساجد والمزامنة').count()) > 0);
+ok('session: only a token is kept, not the password', await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('omd-admin-session') || 'null'); return !!s && s.token.startsWith('omds_') && !JSON.stringify(localStorage).includes('secret123'); }));
+// sign out → the session ends; reload → locked; wrong password refused; right password opens
+await p.evaluate(() => { localStorage.removeItem('omd-admin-session'); });
 await p.reload(); await p.clock.runFor(1200);
-ok('reload → locked again', (await p.getByRole('dialog', { name: 'دخول المشرف' }).count()) === 1);
+ok('without a session → locked again', (await p.getByRole('dialog', { name: 'دخول المشرف' }).count()) === 1);
 await p.getByPlaceholder('كلمة المرور', { exact: true }).fill('wrong-pass'); await p.getByRole('button', { name: 'دخول', exact: true }).click(); await p.clock.runFor(800);
 await p.getByText('كلمة المرور غير صحيحة').waitFor({ timeout: 4000 }).catch(() => {});
 ok('wrong password refused', (await p.getByText('كلمة المرور غير صحيحة').count()) === 1 && (await p.getByText('المساجد والمزامنة').count()) === 0, `${await p.getByText('كلمة المرور غير صحيحة').count()} ${await p.getByText('المساجد والمزامنة').count()} ${(await p.locator('body').innerText()).slice(0,300)}`);
@@ -78,6 +92,7 @@ ok('password itself is not stored on the device', !stored.includes('secret123'))
   await q.getByPlaceholder('كلمة المرور', { exact: true }).fill('secret123'); await q.getByRole('button', { name: 'دخول', exact: true }).click(); await q.waitForTimeout(1500);
   await q.evaluate(async () => { await navigator.serviceWorker.ready; });
   await q.reload(); await q.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 15000 });
+  await q.evaluate(() => localStorage.removeItem('omd-admin-session')); // test the on-device check without a saved session
   await off.setOffline(true); await q.reload(); await q.waitForTimeout(1500);
   await q.getByPlaceholder('كلمة المرور', { exact: true }).fill('nope-nope'); await q.getByRole('button', { name: 'دخول', exact: true }).click(); await q.waitForTimeout(500);
   const refused = (await q.getByText('كلمة المرور غير صحيحة').count()) === 1;
@@ -245,6 +260,11 @@ ok('wilayat without a timetable → old times cleared', (await t.locator('.panel
   ok('main address: preview closes back to the statistics', (await w.getByTestId('screen-preview').count()) === 0 && (await w.getByTestId('portal-dashboard').count()) === 1);
   await w.getByRole('button', { name: 'لوحة التحكم' }).click(); await w.waitForTimeout(800);
   ok('main address: «لوحة التحكم» opens the settings', (await w.getByText('المساجد والمزامنة').count()) > 0);
+  await w.goto(BASE + '/'); await w.waitForTimeout(2500);
+  ok('main address: reload keeps the administrator signed in', (await w.getByTestId('portal-dashboard').count()) === 1);
+  const before = db.sessions.size;
+  await w.getByRole('button', { name: 'خروج' }).click(); await w.waitForTimeout(1500);
+  ok('main address: «خروج» ends the session', (await w.getByTestId('portal-signin').count()) === 1 && db.sessions.size === before - 1 && (await w.evaluate(() => localStorage.getItem('omd-admin-session'))) === null);
   ok('main address: no JS errors', !werrs.length, werrs.join('|'));
   await pc.close();
 }
@@ -276,6 +296,13 @@ await p.bringToFront();
 // 5) Admin tabs: no separate «المسجد» tab; edit a mosque from the list (name + wilayat)
 ok('no «المسجد» admin tab', (await p.getByRole('button', { name: 'المسجد', exact: true }).count()) === 0);
 await p.getByRole('button', { name: 'المساجد والمزامنة' }).first().click(); await p.clock.runFor(1500);
+// blue eye next to «نسخ الرابط» in the settings' mosque list
+await p.getByTestId('preview-samail-jami').click(); await p.clock.runFor(4000); await p.waitForTimeout(2500);
+ok('settings: eye icon previews the mosque screen', (await p.getByTestId('screen-preview').count()) === 1 && (await p.frameLocator('[data-testid="screen-preview"] iframe').locator('.tv-name').textContent()).includes('جامع سمائل'));
+await p.screenshot({ path: `${OUT}/admin-mosque-preview.png` });
+await p.getByRole('button', { name: 'إغلاق المعاينة' }).click(); await p.clock.runFor(300);
+ok('settings: preview closes back to the list', (await p.getByTestId('screen-preview').count()) === 0 && (await p.getByTestId('preview-samail-jami').count()) === 1);
+ok('settings: a preview never changes this device (still linked to its own mosque)', (await p.evaluate(() => JSON.parse(localStorage.getItem('omd-cloud-binding') || 'null')))?.code === 'sq-muscat');
 await p.getByRole('button', { name: 'تعديل مسجد النور' }).click(); await p.clock.runFor(1500);
 const dlg = p.getByRole('dialog', { name: 'تعديل بيانات المسجد' });
 ok('edit dialog opens with current name', (await dlg.locator('input').first().inputValue()) === 'مسجد النور');

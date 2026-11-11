@@ -1,3 +1,4 @@
+import './services/previewMode'; // must run first: an isolated screen preview never touches this device's data
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './services/install'; // catches the browser's install prompt as early as possible
