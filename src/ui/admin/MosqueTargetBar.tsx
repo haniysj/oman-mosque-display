@@ -63,7 +63,8 @@ export function MosqueTargetBar() {
         <h3 className="m-0 inline-flex items-center gap-2 text-[16px] font-extrabold"><IconMosque size={20} />اختر المسجد الذي تريد تعديل إعداداته</h3>
         <p className="m-0 mt-1 text-[13px] leading-6 text-ink2">إعدادات هذه الصفحة خاصة بكل مسجد (مثل الملف الشخصي): اضغط «دخول» على المسجد، وكل ما تعدّله يُحفظ له وحده. لتعديل مسجد آخر اخرج من الملف ثم ادخل إلى ملف المسجد الآخر.</p>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          {cloud.role === 'super' && !shown && (
+          {/* the device's own (unlinked) settings appear only when there are no mosques in the cloud yet */}
+          {cloud.role === 'super' && !shown && mosques !== null && mosques.length === 0 && (
             <ProfileCard testId="enter-local" name={`هذه الشاشة — ${localName || 'بدون اسم'}`} place="غير مرتبطة بمسجد · يُحفظ على هذا الجهاز فقط" onEnter={() => void enterProfile(LOCAL)} />
           )}
           {entries.map((x) => (

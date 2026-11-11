@@ -211,7 +211,7 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
             <BrandMark size={36} />
             <div className="flex min-w-0 flex-col gap-0.5 lg:flex-row lg:items-center lg:gap-3">
               <h1 className="m-0 truncate text-[18px] font-extrabold">إعدادات شاشة المسجد</h1>
-              <span className="inline-flex max-w-[260px] items-center self-start truncate rounded-full bg-teal-soft px-2.5 py-0.5 text-[12px] font-bold text-teal">هذه الشاشة: {cfg.mosque.nameAr || 'بدون اسم'}</span>
+              <span className="inline-flex max-w-[260px] items-center self-start truncate rounded-full bg-teal-soft px-2.5 py-0.5 text-[12px] font-bold text-teal">هذه الشاشة: {cloud.binding ? (cloud.binding.name || cfg.mosque.nameAr || cloud.binding.code) : 'غير مرتبطة بمسجد'}</span>
             </div>
           </div>
           <div className="flex flex-none items-center gap-2">
