@@ -14,7 +14,7 @@ const ok = (name, cond, extra = '') => { results.push({ name, pass: !!cond, extr
 const muscat = (d, t) => new Date(`${d}T${t}+04:00`);
 
 async function seed(page, mutate) {
-  await page.goto(BASE + '/');
+  await page.goto(BASE + SCREEN);
   await page.waitForTimeout(300);
   await page.evaluate(async (b) => {
     const db = await new Promise((res, rej) => { const r = indexedDB.open('oman-mosque-display', 1); r.onupgradeneeded = () => { r.result.createObjectStore('kv'); r.result.createObjectStore('logs', { keyPath: 'id', autoIncrement: true }); }; r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
@@ -48,7 +48,7 @@ async function shot(browser, { name, w, h, at, ua, mutate, hash = '', isMobile =
   page.on('pageerror', (e) => errors.push(e.message));
   await page.clock.install({ time: at });
   await seed(page, mutate);
-  await page.goto(BASE + '/' + hash);
+  await page.goto(BASE + SCREEN + hash);
   await page.clock.runFor(1500);
   await page.waitForTimeout(400);
   await page.screenshot({ path: `${OUT}/${name}.png` });
@@ -60,11 +60,14 @@ async function shot(browser, { name, w, h, at, ua, mutate, hash = '', isMobile =
 }
 
 const browser = await chromium.launch();
+// prayer times are shown only on a mosque's own address: the test screen is a linked mosque «e2e»
+const SCREEN = '/m/e2e';
+const SCREEN_INIT = () => { try { if (!localStorage.getItem('omd-cloud-binding')) { localStorage.setItem('omd-cloud-binding', JSON.stringify({ code: 'e2e', name: '' })); localStorage.setItem('omd-cloud-meta', JSON.stringify({ lastSyncAt: null, mosqueVersion: 1, timetableVersion: 1, wilayatId: null })); } } catch {} };
 /** per-mosque pages open a mosque profile first — this unlinked test screen enters its own */
-async function enterLocal(page) { const b = page.getByTestId('enter-local'); if (await b.count()) { await b.click(); await page.clock.runFor(300); } }
+async function enterLocal(page) { let b = page.getByTestId('enter-local'); if (!(await b.count())) b = page.getByTestId('enter-e2e'); if (await b.count()) { await b.click(); await page.clock.runFor(300); } }
 
 // Offline from the real cloud: no mosque exists, so the display keeps the demo data (no auto-linking).
-{ const nc = browser.newContext.bind(browser); browser.newContext = async (o) => { const c = await nc(o); await c.route(/supabase\.co\/rest\/v1\/rpc\//, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: /mosque_list|mosque_timetables_summary/.test(r.request().url()) ? '[]' : 'null' })); return c; }; }
+{ const nc = browser.newContext.bind(browser); browser.newContext = async (o) => { const c = await nc(o); await c.addInitScript(SCREEN_INIT); await c.route(/supabase\.co\/rest\/v1\/rpc\//, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: /mosque_list|mosque_timetables_summary/.test(r.request().url()) ? '[]' : 'null' })); return c; }; }
 const SAT = '2026-10-10', FRI = '2026-10-09';
 const TV_UA = 'Mozilla/5.0 (Linux; Android 11; BRAVIA 4K VH2 Build/RTT2.220308.004) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 const IPHONE = devices['iPhone 13'];
@@ -178,7 +181,7 @@ await shot(browser, { name: 'adhkar', w: 1920, h: 1080, at: muscat(SAT, '15:40:1
   await seed(page);
   await page.evaluate(() => sessionStorage.setItem('omd-admin-tab', 'adhkar'));
   await adminLogin(ctx);
-  await page.goto(BASE + '/#/admin'); await page.reload(); await page.clock.runFor(800);
+  await page.goto(BASE + SCREEN + '#/admin'); await page.reload(); await page.clock.runFor(800);
   await adminLogin(ctx, page); await page.clock.runFor(800); await enterLocal(page);
   const names = await page.locator('input[aria-label="اسم المجموعة"]').evaluateAll((els) => els.map((e) => e.value));
   ok('adhkar groups: after prayer, morning, evening', names.join('|') === 'أذكار بعد الصلاة|أذكار الصباح|أذكار المساء', names.join('|'));
@@ -194,7 +197,7 @@ await shot(browser, { name: 'adhkar', w: 1920, h: 1080, at: muscat(SAT, '15:40:1
   ok('morning items saved with their group', saved.adhkar.filter((a) => a.groupId === 'morning').length === 2);
   await page.screenshot({ path: `${OUT}/admin-adhkar-groups.png`, fullPage: true });
   // the screen after Asr now starts with the morning group
-  await page.goto(BASE + '/'); await page.clock.setFixedTime(muscat(SAT, '15:39:05')); await page.reload(); await page.clock.runFor(1500);
+  await page.goto(BASE + SCREEN); await page.clock.setFixedTime(muscat(SAT, '15:39:05')); await page.reload(); await page.clock.runFor(1500);
   ok('after Asr: first dhikr comes from the morning group (title = group name)', (await page.locator('.adhkar-title').textContent()).includes('أذكار الصباح'), await page.locator('.adhkar-title').textContent());
   ok('adhkar groups: no JS errors', !errs.length, errs.join('|'));
   await ctx.close();
@@ -227,7 +230,7 @@ for (const tab of ['timetable', 'iqamah', 'friday', 'quiet', 'adhkar', 'diagnost
     await seed(page);
     await page.evaluate((t) => sessionStorage.setItem('omd-admin-tab', t), tab);
     await adminLogin(ctx);
-    await page.goto(BASE + '/#/admin');
+    await page.goto(BASE + SCREEN + '#/admin');
     await page.reload();
     await page.clock.runFor(800);
     await adminLogin(ctx, page); await page.clock.runFor(800); await enterLocal(page);
@@ -247,7 +250,7 @@ for (const tab of ['timetable', 'iqamah', 'friday', 'quiet', 'adhkar', 'diagnost
   await seed(page);
   await page.evaluate(() => sessionStorage.setItem('omd-admin-tab', 'adhkar'));
   await adminLogin(ctx);
-  await page.goto(BASE + '/#/admin'); await page.reload(); await page.clock.runFor(800);
+  await page.goto(BASE + SCREEN + '#/admin'); await page.reload(); await page.clock.runFor(800);
   await adminLogin(ctx, page); await page.clock.runFor(800); await enterLocal(page);
   const inputs = page.locator('[data-testid^="dur-"]');
   ok('adhkar: every dhikr has its own length field', (await inputs.count()) >= 3);
@@ -270,7 +273,7 @@ for (const tab of ['timetable', 'iqamah', 'friday', 'quiet', 'adhkar', 'diagnost
   await seed(page);
   await page.evaluate(() => sessionStorage.setItem('omd-admin-tab', 'quiet'));
   await adminLogin(ctx);
-  await page.goto(BASE + '/#/admin'); await page.reload(); await page.clock.runFor(800);
+  await page.goto(BASE + SCREEN + '#/admin'); await page.reload(); await page.clock.runFor(800);
   await adminLogin(ctx, page); await page.clock.runFor(800); await enterLocal(page);
   const card = page.getByTestId('sleep-card');
   await card.getByRole('button', { name: 'إضافة فترة' }).click(); await page.clock.runFor(300);
@@ -294,9 +297,9 @@ for (const tab of ['timetable', 'iqamah', 'friday', 'quiet', 'adhkar', 'diagnost
   await seed(page);
   await page.evaluate(() => sessionStorage.setItem('omd-admin-tab', 'iqamah'));
   await adminLogin(ctx);
-  await page.goto(BASE + '/#/admin'); await page.reload(); await page.clock.runFor(800);
+  await page.goto(BASE + SCREEN + '#/admin'); await page.reload(); await page.clock.runFor(800);
   await adminLogin(ctx, page); await page.clock.runFor(800); await enterLocal(page);
-  ok('profile: unlinked screen enters its own profile', (await page.getByTestId('profile-bar').textContent()).includes('على هذا الجهاز'));
+  ok('profile: this screen enters its own mosque profile', (await page.getByTestId('profile-bar').textContent()).includes('مسجد هذه الشاشة'));
   const daily = page.getByText('الإقامة اليومية').locator('xpath=ancestor::section[1]');
   const asrBox = daily.locator('div.grid', { has: page.getByText('العصر', { exact: true }) }).first();
   await asrBox.getByText('تثبيت موعد الإقامة').click(); await page.clock.runFor(300);
@@ -306,7 +309,7 @@ for (const tab of ['timetable', 'iqamah', 'friday', 'quiet', 'adhkar', 'diagnost
   ok('lock: admin preview shows 3:45 مثبّت', prev.includes('3:45') && prev.includes('مثبّت'), prev.slice(0, 200));
   const cfgSaved = await page.evaluate(async () => { const db = await new Promise((r) => { const q = indexedDB.open('oman-mosque-display', 1); q.onsuccess = () => r(q.result); }); return new Promise((r) => { const g = db.transaction('kv').objectStore('kv').get('config'); g.onsuccess = () => r(g.result.iqamah.locks); }); });
   ok('lock: saved in settings', cfgSaved?.asr?.enabled === true && cfgSaved?.asr?.time === '15:45', JSON.stringify(cfgSaved));
-  await page.goto(BASE + '/'); await page.clock.runFor(1500);
+  await page.goto(BASE + SCREEN); await page.clock.runFor(1500);
   const iqRows = await page.locator('.panel').nth(1).textContent();
   ok('lock: screen shows Asr iqamah 3:45, no lock marker', iqRows.includes('3:45') && !iqRows.includes('مثبت') && !iqRows.includes('مثبّت'), iqRows);
   ok('lock: no JS errors', errs.length === 0, errs.join('|'));
@@ -400,7 +403,7 @@ await shot(browser, { name: 'phone-after-iqamah', w: IPHONE.viewport.width, h: I
   const page = await ctx.newPage();
   await page.clock.install({ time: muscat(SAT, '15:20:07') }); // fixed time: never inside a quiet/adhkar period
   await seed(page);
-  await page.goto(BASE + '/');
+  await page.goto(BASE + SCREEN);
   await page.evaluate(async () => { const r = await navigator.serviceWorker.ready; return !!r.active; });
   await page.reload();
   await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 15000 });

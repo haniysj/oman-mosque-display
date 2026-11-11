@@ -10,7 +10,7 @@ const ok = (n, c, x = '') => { results.push(c); console.log(`${c ? 'PASS' : 'FAI
 const b = await chromium.launch();
 
 // Offline from the real cloud: no mosque exists, so the display keeps the demo data (no auto-linking).
-{ const nc = b.newContext.bind(b); b.newContext = async (o) => { const c = await nc(o); await c.route(/supabase\.co\/rest\/v1\/rpc\//, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: /mosque_list|mosque_timetables_summary/.test(r.request().url()) ? '[]' : 'null' })); return c; }; }
+{ const nc = b.newContext.bind(b); b.newContext = async (o) => { const c = await nc(o); await c.addInitScript(() => { try { if (!localStorage.getItem('omd-cloud-binding')) { localStorage.setItem('omd-cloud-binding', JSON.stringify({ code: 'e2e', name: '' })); localStorage.setItem('omd-cloud-meta', JSON.stringify({ lastSyncAt: null, mosqueVersion: 1, timetableVersion: 1, wilayatId: null })); } } catch {} }); await c.route(/supabase\.co\/rest\/v1\/rpc\//, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: /mosque_list|mosque_timetables_summary/.test(r.request().url()) ? '[]' : 'null' })); return c; }; }
 for (const strip of [false, true]) {
   const ctx = await b.newContext({ viewport: { width: 1920, height: 1080 }, serviceWorkers: 'block', userAgent: 'Mozilla/5.0 (SMART-TV; LINUX; Tizen 5.0) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/2.2 Chrome/63.0.3239.84 TV Safari/537.36' });
   if (strip) await ctx.addInitScript(() => {
@@ -21,7 +21,7 @@ for (const strip of [false, true]) {
   });
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', (e) => errs.push(e.message));
   await p.clock.install({ time: new Date('2026-10-10T15:20:00+04:00') });
-  await p.goto(BASE + '/'); await p.waitForTimeout(500);
+  await p.goto(BASE + '/m/e2e'); await p.waitForTimeout(500);
   await p.evaluate(async (bk) => {
     const db = await new Promise((res) => { const r = indexedDB.open('oman-mosque-display', 1); r.onupgradeneeded = () => { r.result.createObjectStore('kv'); r.result.createObjectStore('logs', { keyPath: 'id', autoIncrement: true }); }; r.onsuccess = () => res(r.result); });
     await new Promise((res) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(bk.config, 'config'); tx.objectStore('kv').put(bk.schedule, 'schedule'); tx.objectStore('kv').put(bk.adhkar, 'adhkar'); tx.oncomplete = res; });
@@ -54,7 +54,7 @@ for (const strip of [false, true]) {
   });
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', (e) => errs.push(e.message));
   await p.clock.install({ time: new Date('2026-10-10T15:20:00+04:00') });
-  await p.goto(BASE + '/'); await p.clock.runFor(4000); await p.waitForTimeout(800);
+  await p.goto(BASE + '/m/e2e'); await p.clock.runFor(4000); await p.waitForTimeout(800);
   ok('fresh old TV: linked to the default mosque', (await p.locator('.tv-name').textContent())?.includes('مسجد التقوى'));
   ok('fresh old TV: prayer times shown', (await p.locator('.panel .row').count()) === 12);
   await p.mouse.click(960, 540); await p.mouse.click(960, 540); await p.clock.runFor(300);

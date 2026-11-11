@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { GOVERNORATES, findGovernorate, locationLabel } from '../../domain/oman';
 import {
   adminChangePassword, adminInit, adminLogin, adminLogout, adminStatus, bindDevice, createMosque, deleteMosque, getMosqueConfig, updateMosque,
-  listMosques, listTimetables, getDefaultMosque, setDefaultMosque, type DefaultMosque, pushMosque, pushTimetable, syncNow, unbindDevice, useCloud,
+  listMosques, listTimetables, syncNow, unbindDevice, useCloud,
   type MosqueSummary, type TimetableSummary,
 } from '../../services/cloud';
 import { updateConfig, useApp } from '../../store/appStore';
@@ -10,7 +10,7 @@ import type { AppConfig } from '../../domain/types';
 import { MosqueEditor, WilayatTimetableHint } from './MosqueEditor';
 import { useOnline } from '../../services/platform';
 import { Badge, Btn, Card, Field, Grid, Note, Select, useConfirm } from './kit';
-import { IconCheck, IconDownload, IconEdit, IconLock, IconPlus, IconRestore, IconStar, IconTrash, IconUpload, IconWifiOff } from '../common/icons';
+import { IconCheck, IconDownload, IconEdit, IconLock, IconPlus, IconRestore, IconTrash, IconWifiOff } from '../common/icons';
 
 const fmt = (iso: string | null) => { if (!iso) return '—'; try { return new Date(iso).toLocaleString('ar-OM-u-nu-latn', { timeZone: 'Asia/Muscat', dateStyle: 'medium', timeStyle: 'short' }); } catch { return iso; } };
 const linkFor = (code: string) => `${location.origin}/m/${code}`;
@@ -40,14 +40,12 @@ export function CloudSection() {
   const [pw2, setPw2] = useState('');
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<{ code: string | null; cfg: AppConfig } | null>(null);
-  const [def, setDef] = useState<DefaultMosque | null | undefined>(undefined);
 
   const refresh = async () => {
     setErr('');
     try {
       const [st, ms, ts] = await Promise.all([adminStatus(), listMosques(), listTimetables()]);
       setInitialized(st.initialized); setMosques(ms); setTables(ts);
-      setDef(await getDefaultMosque().catch(() => null));
     } catch (e) { setErr((e as Error).message); }
   };
   useEffect(() => { if (online) void refresh(); }, [online]);
@@ -136,24 +134,13 @@ export function CloudSection() {
       <Card title="دخول المشرف" icon={<IconLock size={16} />} actions={cloud.admin ? <Badge tone="teal">مسجّل الدخول</Badge> : null}>
         {cloud.admin ? (
           <div className="flex flex-col gap-2">
-            <Note tone="ok">
-              {bound
-                ? <>تعديلاتك على هذا الجهاز تُرفع تلقائياً: الإعدادات والأذكار إلى «{bound.name || bound.code}»، وجدول المواقيت والمعايرة إلى جدول ولاية {locationLabel(cfg.mosque.location.governorateId, cfg.mosque.location.wilayatId)} — فتصل لكل مساجد الولاية.</>
-                : 'اربط هذا الجهاز بمسجد لتُرفع تعديلاتك إليه.'}
-            </Note>
-            <div className="flex flex-wrap gap-2">
-              <Btn small disabled={!bound || busy} onClick={() => void run(pushMosque, 'رُفعت إعدادات المسجد.')}><IconUpload size={14} />رفع إعدادات المسجد الآن</Btn>
-              <Btn small disabled={!bound || busy} onClick={() => ask(`رفع جدول هذا الجهاز ليكون جدول ولاية ${locationLabel(cfg.mosque.location.governorateId, cfg.mosque.location.wilayatId)} لكل مساجدها؟`, () => void run(pushTimetable, 'رُفع جدول الولاية.'))}><IconUpload size={14} />رفع جدول الولاية الآن</Btn>
-              <Btn small kind="ghost" onClick={adminLogout}>تسجيل الخروج</Btn>
+            <div className="text-[13px] font-bold text-ink2">تغيير كلمة مرور المشرف العام</div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]" data-testid="change-admin-password">
+              <input className={inputCls} type="password" placeholder="كلمة المرور الحالية" value={pw} onChange={(e) => setPw(e.target.value)} />
+              <input className={inputCls} type="password" placeholder="الجديدة (6 أحرف على الأقل)" value={pw2} onChange={(e) => setPw2(e.target.value)} />
+              <Btn kind="primary" disabled={busy || !pw || pw2.length < 6} onClick={() => void run(() => adminChangePassword(pw, pw2), 'تم تغيير كلمة المرور.').then(() => { setPw(''); setPw2(''); })}>حفظ</Btn>
             </div>
-            <details className="mt-1">
-              <summary className="cursor-pointer text-[13px] font-bold text-ink2">تغيير كلمة المرور</summary>
-              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
-                <input className={inputCls} type="password" placeholder="الحالية" value={pw} onChange={(e) => setPw(e.target.value)} />
-                <input className={inputCls} type="password" placeholder="الجديدة (6 أحرف على الأقل)" value={pw2} onChange={(e) => setPw2(e.target.value)} />
-                <Btn kind="primary" disabled={busy || pw2.length < 6} onClick={() => void run(() => adminChangePassword(pw, pw2), 'تم تغيير كلمة المرور.').then(() => { setPw(''); setPw2(''); })}>حفظ</Btn>
-              </div>
-            </details>
+            <div><Btn small kind="ghost" onClick={adminLogout}>تسجيل الخروج</Btn></div>
           </div>
         ) : initialized === false ? (
           <form className="flex flex-col gap-2" onSubmit={(e) => { e.preventDefault(); if (pw === pw2) void run(() => adminInit(pw), 'أُنشئت كلمة مرور الإدارة وتم تسجيل دخولك.').then(() => { setPw(''); setPw2(''); }); else setErr('كلمتا المرور غير متطابقتين'); }}>
@@ -179,15 +166,6 @@ export function CloudSection() {
       }, `أُضيف «${name}».${bindAfter ? ' وربط هذا الجهاز به.' : ''}`)} />}
 
       <Card title="المساجد" actions={<Btn small kind="ghost" onClick={() => void refresh()} disabled={!online}><IconRestore size={14} />تحديث القائمة</Btn>}>
-        {mosques && mosques.length > 0 && (
-          <div className="mb-3 flex items-start gap-2 rounded-xl border border-[#E8C766] bg-[#FFF8E1] px-3 py-2 text-[13px] leading-6 text-ink2" data-testid="default-mosque-note">
-            <span className="mt-1 text-[#C99A06]"><IconStar size={16} /></span>
-            <span>
-              <b className="text-ink">المسجد الافتراضي: {def ? def.name_ar : <span className="text-[#8A5A0B]">غير محدد (يُستخدم أول مسجد في القائمة: {mosques[0].name_ar})</span>}</b><br />
-              أي جهاز يفتح المنصة لأول مرة يرتبط به تلقائياً ويعرض مواقيته — دون دخول مشرف ودون إعدادات. {cloud.admin ? 'اضغط ★ بجانب أي مسجد لجعله الافتراضي.' : ''}
-            </span>
-          </div>
-        )}
         {!mosques ? <p className="m-0 text-[13px] text-muted">{online ? 'جارٍ التحميل…' : 'غير متاح دون إنترنت'}</p> : !mosques.length ? <p className="m-0 text-[13px] text-muted">لا توجد مساجد بعد.</p> : (
           <div className="overflow-x-auto rounded-xl border border-line">
             <table className="w-full border-collapse text-[13px]">
@@ -195,14 +173,13 @@ export function CloudSection() {
               <tbody>
                 {mosques.map((m) => (
                   <tr key={m.code} className={`border-t border-line ${bound?.code === m.code ? 'bg-teal-soft/40' : ''}`}>
-                    <td className="px-2 py-2"><b className="text-ink">{m.name_ar}</b>{def?.code === m.code && <span className="mr-1.5 inline-flex translate-y-0.5 items-center gap-1 rounded-full bg-[#FFF1C2] px-2 py-0.5 text-[11px] font-bold text-[#8A5A0B]"><IconStar size={11} />الافتراضي</span>}<div className="text-[11px] text-muted" dir="ltr">{m.code}</div></td>
+                    <td className="px-2 py-2"><b className="text-ink">{m.name_ar}</b><div className="text-[11px] text-muted" dir="ltr">{m.code}</div></td>
                     <td className="whitespace-nowrap px-2 py-2">{locationLabel(m.governorate_id, m.wilayat_id)}</td>
                     <td className="whitespace-nowrap px-2 py-2 text-center">{m.timetable_days ? <Badge tone="teal">{m.timetable_days} يوماً</Badge> : <Badge tone="saffron">لا يوجد</Badge>}</td>
                     <td className="px-2 py-2">
                       <div className="flex flex-wrap justify-center gap-1.5">
                         {bound?.code === m.code ? <Badge tone="teal">هذا الجهاز</Badge> : <Btn small disabled={busy} onClick={() => ask(`ربط هذا الجهاز بـ «${m.name_ar}»؟\nستُستبدل إعدادات هذا الجهاز وجدوله بنسخة المسجد.`, () => void run(() => bindDevice(m.code, m.name_ar), `تم ربط الجهاز بـ «${m.name_ar}».`))}>ربط</Btn>}
                         <CopyLink code={m.code} />
-                        {cloud.admin && def?.code !== m.code && <Btn small disabled={busy || !online} title={`جعل ${m.name_ar} المسجد الافتراضي`} onClick={() => ask(`جعل «${m.name_ar}» المسجد الافتراضي؟\nكل جهاز جديد يفتح المنصة يرتبط به تلقائياً. الأجهزة المرتبطة بمساجد أخرى لا تتغير.`, () => void run(() => setDefaultMosque(m.code), `«${m.name_ar}» هو المسجد الافتراضي الآن.`))}><IconStar size={14} /></Btn>}
                         {cloud.admin && <Btn small disabled={busy || !online} onClick={() => openEdit(m.code)} title={`تعديل ${m.name_ar}`}><IconEdit size={14} /></Btn>}
                         {cloud.admin && <Btn small kind="danger" title={`حذف ${m.name_ar}`} disabled={busy} onClick={() => ask(`حذف «${m.name_ar}» من السحابة؟`, () => ask(`تأكيد نهائي: حذف «${m.name_ar}» (${m.code}). الشاشات المرتبطة به تتوقف عن التحديث وتبقى بآخر نسخة.`, () => void run(() => deleteMosque(m.code), 'تم الحذف.')))}><IconTrash size={14} /></Btn>}
                       </div>
@@ -219,7 +196,7 @@ export function CloudSection() {
 
       <Card title="تشغيل نسخة المسجد على شاشة دون إنترنت">
         <ol className="m-0 list-decimal space-y-1 pr-5 text-[14px] leading-7 text-ink2">
-          <li>افتح المنصة على جهاز الشاشة مع وجود الإنترنت — يرتبط تلقائياً بالمسجد الافتراضي، أو افتح رابط مسجد محدد (مثل <span dir="ltr" className="font-bold">/m/رمز-المسجد</span>).</li>
+          <li>افتح رابط المسجد على جهاز الشاشة مع وجود الإنترنت (مثل <span dir="ltr" className="font-bold">/m/رمز-المسجد</span>)، ثم اربطه بالمسجد من هذه الصفحة.</li>
           <li>انتظر حتى يظهر في «التشخيص»: العمل دون إنترنت «جاهز».</li>
           <li>اختياري: زر «تثبيت التطبيق» أعلى الإعدادات.</li>
           <li>بعدها تعمل الشاشة دون إنترنت بآخر إعدادات وجدول محفوظين، وتتحدث تلقائياً كلما اتصلت.</li>

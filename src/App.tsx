@@ -4,6 +4,8 @@ import { DisplayScreen } from './ui/display/DisplayScreen';
 import { Admin } from './ui/admin/Admin';
 import { Preview } from './ui/display/Preview';
 import { ErrorBoundary } from './ui/common/ErrorBoundary';
+import { Portal } from './ui/portal/Portal';
+import { bindingFromUrl, useCloud } from './services/cloud';
 
 function useHash() {
   const [h, setH] = useState(location.hash);
@@ -15,6 +17,7 @@ export default function App() {
   const loaded = useApp((s) => s.loaded);
   const loadError = useApp((s) => s.loadError);
   const hash = useHash();
+  useCloud(); // re-render when a linked screen's address moves to its mosque
   const adminOpen = hash.startsWith('#/admin');
   const openAdmin = useCallback(() => { location.hash = '#/admin'; }, []);
   const closeAdmin = useCallback(() => { history.replaceState(null, '', location.pathname + location.search); window.dispatchEvent(new HashChangeEvent('hashchange')); }, []);
@@ -23,7 +26,10 @@ export default function App() {
   if (!loaded) return <div className="fixed inset-0 bg-[#062A22]" aria-busy />;
   return (
     <>
-      <ErrorBoundary area="display"><DisplayScreen onOpenAdmin={openAdmin} adminOpen={adminOpen} /></ErrorBoundary>
+      {/* prayer times only on a mosque's own address; the main address is the general administrator's page */}
+      {bindingFromUrl()
+        ? <ErrorBoundary area="display"><DisplayScreen onOpenAdmin={openAdmin} adminOpen={adminOpen} /></ErrorBoundary>
+        : !adminOpen && <ErrorBoundary area="portal"><Portal onOpenAdmin={openAdmin} /></ErrorBoundary>}
       {adminOpen && <ErrorBoundary area="admin"><Admin onClose={closeAdmin} /></ErrorBoundary>}
       {loadError && !adminOpen && (
         <div style={{ position: 'fixed', bottom: 8, left: 8, zIndex: 40, background: '#C2453A', color: '#fff', borderRadius: 999, padding: '4px 12px', fontSize: 13, fontFamily: 'Cairo' }}>

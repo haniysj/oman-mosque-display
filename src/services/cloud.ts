@@ -570,8 +570,8 @@ export function startCloud() {
   if (fromUrl && isLinked() && fromUrl !== status.binding!.code) { syncUrl(status.binding!.code); fromUrl = null; }
   if (fromUrl && fromUrl !== status.binding?.code) void viewMosque(fromUrl);
   else if (status.binding) { if (isLinked() && !fromUrl) syncUrl(status.binding.code); void syncNow(); }
-  else void autoBindDefault();
-  const tick = () => { if (status.binding) void syncNow(); else void autoBindDefault(); };
+  // (no default mosque any more: a mosque's times are shown only on its own address)
+  const tick = () => { if (status.binding) void syncNow(); };
   setInterval(tick, POLL_MS);
   window.addEventListener('online', tick);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') tick(); });

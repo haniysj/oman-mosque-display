@@ -63,7 +63,8 @@ ok('settings open after sign-in', (await p.getByText('المساجد والمز�
 await p.reload(); await p.clock.runFor(1200);
 ok('reload → locked again', (await p.getByRole('dialog', { name: 'دخول المشرف' }).count()) === 1);
 await p.getByPlaceholder('كلمة المرور', { exact: true }).fill('wrong-pass'); await p.getByRole('button', { name: 'دخول', exact: true }).click(); await p.clock.runFor(800);
-ok('wrong password refused', (await p.getByText('كلمة المرور غير صحيحة').count()) === 1 && (await p.getByText('المساجد والمزامنة').count()) === 0);
+await p.getByText('كلمة المرور غير صحيحة').waitFor({ timeout: 4000 }).catch(() => {});
+ok('wrong password refused', (await p.getByText('كلمة المرور غير صحيحة').count()) === 1 && (await p.getByText('المساجد والمزامنة').count()) === 0, `${await p.getByText('كلمة المرور غير صحيحة').count()} ${await p.getByText('المساجد والمزامنة').count()} ${(await p.locator('body').innerText()).slice(0,300)}`);
 await p.getByPlaceholder('كلمة المرور', { exact: true }).fill('secret123'); await p.getByRole('button', { name: 'دخول', exact: true }).click(); await p.clock.runFor(1200);
 ok('right password opens settings', (await p.getByText('المساجد والمزامنة').count()) > 0);
 // offline sign-in uses the verifier saved on this device (no password stored)
@@ -210,61 +211,56 @@ await t.bringToFront(); await t.reload(); await t.waitForTimeout(2000);
   const m = buildManifest('altaqwa', 'مسجد التقوى');
   ok('mosque app manifest: own id / start / scope and the mosque name', m.id === '/m/altaqwa' && m.start_url === '/m/altaqwa' && m.scope === '/m/altaqwa' && m.name === 'مسجد التقوى' && m.short_name === 'مسجد التقوى', JSON.stringify(m).slice(0, 160));
 }
-// the general address: the mosque can be chosen with a double-tap (view only)
-await t.goto(BASE + '/'); await t.waitForTimeout(2000);
-ok('general app: keeps the general manifest', (await t.evaluate(() => document.querySelector('link[rel="manifest"]')?.getAttribute('href'))) === '/manifest.webmanifest');
+// each mosque's own address shows that mosque (its wilayat's timetable)
 const before = await t.locator('.panel .row').first().textContent();
-await t.locator('.name-tap').first().dblclick(); await t.waitForTimeout(1500);
-await t.locator('.mp-item', { hasText: 'جامع سمائل' }).click(); await t.waitForTimeout(3000);
+await t.goto(BASE + '/m/samail-jami'); await t.waitForTimeout(3000);
 const after = await t.locator('.panel .row').first().textContent();
 ok('TV before: Muscat fajr', !!fajrMus && before.includes(fmt12(fajrMus)), `${before} / ${fajrMus}`);
-ok('choose Samail mosque → TV shows Samail timetable', !!fajrSam && after.includes(fmt12(fajrSam)) && (await t.locator('.tv-name').textContent()).includes('جامع سمائل'), `${after} / ${fajrSam}`);
+ok('Samail mosque link → Samail timetable', !!fajrSam && after.includes(fmt12(fajrSam)) && (await t.locator('.tv-name').textContent()).includes('جامع سمائل'), `${after} / ${fajrSam}`);
 // a mosque in a wilayat without a timetable → no stale times from another wilayat
 handle('mosque_admin_upsert_mosque', { p_password: 'secret123', p_code: 'nizwa-jami', p_name_ar: 'جامع نزوى', p_governorate_id: 'dakhiliyah', p_wilayat_id: 'nizwa', p_config: db.mosques.get('sq-muscat').config, p_adhkar: [] });
-await t.locator('.name-tap').first().dblclick(); await t.waitForTimeout(1500);
-await t.locator('.mp-item', { hasText: 'جامع نزوى' }).click(); await t.waitForTimeout(3000);
+await t.goto(BASE + '/m/nizwa-jami'); await t.waitForTimeout(3000);
 ok('wilayat without a timetable → old times cleared', (await t.locator('.panel .row').count()) === 0, String(await t.locator('.panel .row').count()));
-await p.bringToFront();
 
-// Default mosque: the admin stars «جامع سمائل»; any NEW device (no sign-in, no settings) links itself to it
-await p.getByRole('button', { name: 'المساجد والمزامنة' }).first().click(); await p.clock.runFor(1500);
-ok('mosques page shows the default-mosque note', (await p.getByTestId('default-mosque-note').textContent()).includes('غير محدد'));
-await p.getByRole('button', { name: 'جعل جامع سمائل المسجد الافتراضي' }).click(); await p.clock.runFor(300);
-await p.getByRole('button', { name: 'تأكيد' }).click(); await p.clock.runFor(1500);
-ok('default mosque saved in the cloud', db.def === 'samail-jami');
-ok('mosques page marks the default', (await p.getByTestId('default-mosque-note').textContent()).includes('جامع سمائل'));
-await p.screenshot({ path: `${OUT}/default-mosque.png` });
+// The main address: the general administrator's page (sign-in, then statistics) — never prayer times
+{
+  const pc = await b.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
+  await wire(pc);
+  const w = await pc.newPage(); const werrs = []; w.on('pageerror', (e) => werrs.push(e.message));
+  await w.goto(BASE + '/'); await w.waitForTimeout(3500);
+  ok('main address: sign-in page, no prayer times and no default mosque', (await w.getByTestId('portal-signin').count()) === 1 && (await w.locator('.panel .row, .m-table, .display-root').count()) === 0 && (await w.evaluate(() => localStorage.getItem('omd-cloud-binding'))) === null);
+  await w.screenshot({ path: `${OUT}/portal-signin.png` });
+  await w.getByPlaceholder('كلمة المرور').fill('secret123'); await w.waitForTimeout(3000);
+  const kpi = await w.getByTestId('kpi-mosques').textContent();
+  ok('main address: after sign-in, statistics of the registered mosques', (await w.getByTestId('portal-dashboard').count()) === 1 && kpi.includes(String(db.mosques.size)) && (await w.getByTestId('portal-row-samail-jami').count()) === 1, kpi);
+  await w.screenshot({ path: `${OUT}/portal-dashboard.png`, fullPage: true });
+  await w.getByRole('button', { name: 'لوحة التحكم' }).click(); await w.waitForTimeout(800);
+  ok('main address: «لوحة التحكم» opens the settings', (await w.getByText('المساجد والمزامنة').count()) > 0);
+  ok('main address: no JS errors', !werrs.length, werrs.join('|'));
+  await pc.close();
+}
+// a phone opens one mosque, then another mosque's own link: a loading screen, never the previous one first
 {
   const { devices } = await import('playwright');
   const ph = await b.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' });
   await wire(ph);
   const q = await ph.newPage(); const qerrs = []; q.on('pageerror', (e) => qerrs.push(e.message));
   await q.clock.setFixedTime(at);
-  await q.goto(BASE + '/'); await q.waitForTimeout(3500);
-  ok('new phone: linked to the default mosque automatically (no list, no settings)', (await q.locator('.mp-sheet').count()) === 0 && (await q.locator('.m-table tbody tr').count()) === 6 && (await q.locator('.m-name').textContent()).includes('جامع سمائل'));
-  ok('new phone: stays on the general address (shows the default mosque without linking)', new URL(q.url()).pathname === '/' && (await q.evaluate(() => JSON.parse(localStorage.getItem('omd-cloud-binding') || 'null')))?.viewOnly === true, q.url());
-  ok('new phone: no JS errors', qerrs.length === 0, qerrs.join('|'));
-  // then the phone opens another mosque's own link: a loading screen, never the default mosque first
+  await q.goto(BASE + '/m/samail-jami'); await q.waitForTimeout(3500);
+  ok('phone: mosque link shows that mosque', (await q.locator('.m-name').textContent()).includes('جامع سمائل'));
   await q.route(/rpc\/mosque_bundle/, async (route) => { await new Promise((r) => setTimeout(r, 2500)); await route.fallback(); });
   await q.goto(BASE + '/m/noor-muttrah'); await q.waitForTimeout(700);
   const loadingShown = (await q.getByTestId('mosque-loading').count()) === 1;
-  const defaultShown = (await q.locator('.m-name').count()) > 0;
+  const prevShown = (await q.locator('.m-name').count()) > 0;
   await q.screenshot({ path: `${OUT}/mosque-loading.png` });
-  ok('mosque link: a loading screen first — the default mosque is not shown meanwhile', loadingShown && !defaultShown);
+  ok('mosque link: a loading screen first — the previous mosque is not shown meanwhile', loadingShown && !prevShown);
   await q.waitForTimeout(4000);
   ok('mosque link: then that mosque\'s times appear', (await q.getByTestId('mosque-loading').count()) === 0 && (await q.locator('.m-name').textContent()).includes('مسجد النور'));
-  // reopening (offline-first): its own data shows at once, no loading screen
   await q.unroute(/rpc\/mosque_bundle/);
   await q.reload(); await q.waitForTimeout(400);
   ok('mosque link: reopening shows it straight away (no loading screen)', (await q.getByTestId('mosque-loading').count()) === 0 && (await q.locator('.m-name').textContent()).includes('مسجد النور'));
+  ok('phone: no JS errors', qerrs.length === 0, qerrs.join('|'));
   await ph.close();
-  // a new TV too
-  const tv3 = await b.newContext({ viewport: { width: 1920, height: 1080 }, serviceWorkers: 'block' });
-  await wire(tv3);
-  const r = await tv3.newPage(); await r.clock.setFixedTime(at);
-  await r.goto(BASE + '/'); await r.waitForTimeout(3500);
-  ok('new TV: linked to the default mosque automatically', (await r.locator('.tv-name').textContent()).includes('جامع سمائل') && (await r.locator('.panel .row').count()) === 12);
-  await tv3.close();
 }
 await p.bringToFront();
 

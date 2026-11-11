@@ -7,7 +7,7 @@ const backup = JSON.parse(readFileSync(new URL('../public/data/sample-backup-DEM
 const b = await chromium.launch();
 
 // Offline from the real cloud: no mosque exists, so the display keeps the demo data (no auto-linking).
-{ const nc = b.newContext.bind(b); b.newContext = async (o) => { const c = await nc(o); await c.route(/supabase\.co\/rest\/v1\/rpc\//, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: /mosque_list|mosque_timetables_summary/.test(r.request().url()) ? '[]' : 'null' })); return c; }; }
+{ const nc = b.newContext.bind(b); b.newContext = async (o) => { const c = await nc(o); await c.addInitScript(() => { try { if (!localStorage.getItem('omd-cloud-binding')) { localStorage.setItem('omd-cloud-binding', JSON.stringify({ code: 'e2e', name: '' })); localStorage.setItem('omd-cloud-meta', JSON.stringify({ lastSyncAt: null, mosqueVersion: 1, timetableVersion: 1, wilayatId: null })); } } catch {} }); await c.route(/supabase\.co\/rest\/v1\/rpc\//, (r) => r.fulfill({ status: 200, contentType: 'application/json', body: /mosque_list|mosque_timetables_summary/.test(r.request().url()) ? '[]' : 'null' })); return c; }; }
 const cases = [
   { n: 'iphone16pro-portrait', vp: { width: 402, height: 874 }, ins: { top: 62, bottom: 34, left: 0, right: 0 }, mobile: true },
   { n: 'iphone16pro-landscape', vp: { width: 874, height: 402 }, ins: { top: 0, bottom: 21, left: 62, right: 62 }, mobile: true },
@@ -24,7 +24,7 @@ for (const c of cases) {
   let supported = true;
   try { await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: c.ins }); } catch (e) { supported = false; console.log('no CDP safe-area:', e.message); }
   await p.clock.install({ time: new Date('2026-10-10T15:00:00+04:00') });
-  await p.goto('http://localhost:4173/'); await p.waitForTimeout(400);
+  await p.goto('http://localhost:4173/m/e2e'); await p.waitForTimeout(400);
   await p.evaluate(async (bk) => {
     const db = await new Promise((res) => { const r = indexedDB.open('oman-mosque-display', 1); r.onupgradeneeded = () => { r.result.createObjectStore('kv'); r.result.createObjectStore('logs', { keyPath: 'id', autoIncrement: true }); }; r.onsuccess = () => res(r.result); });
     await new Promise((res) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(bk.config, 'config'); tx.objectStore('kv').put(bk.schedule, 'schedule'); tx.objectStore('kv').put(bk.adhkar, 'adhkar'); tx.oncomplete = res; });
