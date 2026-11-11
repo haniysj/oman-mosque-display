@@ -234,6 +234,15 @@ ok('wilayat without a timetable → old times cleared', (await t.locator('.panel
   const kpi = await w.getByTestId('kpi-mosques').textContent();
   ok('main address: after sign-in, statistics of the registered mosques', (await w.getByTestId('portal-dashboard').count()) === 1 && kpi.includes(String(db.mosques.size)) && (await w.getByTestId('portal-row-samail-jami').count()) === 1, kpi);
   await w.screenshot({ path: `${OUT}/portal-dashboard.png`, fullPage: true });
+  await w.getByTestId('preview-samail-jami').click(); await w.waitForTimeout(4000);
+  const fr = w.frameLocator('[data-testid="screen-preview"] iframe');
+  ok('main address: preview icon shows the mosque\'s real screen', (await w.getByTestId('screen-preview').count()) === 1 && (await fr.locator('.tv-name').textContent()).includes('جامع سمائل'));
+  await w.screenshot({ path: `${OUT}/portal-preview.png` });
+  await w.getByRole('button', { name: 'هاتف' }).click(); await w.waitForTimeout(3000);
+  ok('main address: preview as a phone', (await fr.locator('.m-name').textContent()).includes('جامع سمائل'));
+  await w.screenshot({ path: `${OUT}/portal-preview-phone.png` });
+  await w.getByRole('button', { name: 'إغلاق المعاينة' }).click(); await w.waitForTimeout(300);
+  ok('main address: preview closes back to the statistics', (await w.getByTestId('screen-preview').count()) === 0 && (await w.getByTestId('portal-dashboard').count()) === 1);
   await w.getByRole('button', { name: 'لوحة التحكم' }).click(); await w.waitForTimeout(800);
   ok('main address: «لوحة التحكم» opens the settings', (await w.getByText('المساجد والمزامنة').count()) > 0);
   ok('main address: no JS errors', !werrs.length, werrs.join('|'));
